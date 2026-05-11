@@ -24,14 +24,33 @@ Tap not yet published.
 ## Quick start
 
 ```sh
-agentcfg init --source ~/.ai          # or omit --source to use ~/.agentcfg/source
-agentcfg target add claude   ~/.claude
-agentcfg target add codex    ~/.codex
-agentcfg target add opencode ~/.config/opencode
-agentcfg status
-agentcfg install obsidian-cli         # install into all targets
+agentcfg init                          # writes config + creates source skeleton
+agentcfg discover                      # list known agent dirs found in $HOME
+agentcfg discover --paths              # show which paths the catalog checks
+agentcfg discover --add claude         # register a discovered agent as a target
+agentcfg discover --add-all            # register every discovered agent
+
+agentcfg import claude --all           # copy items from claude into source
+agentcfg import codex CLAUDE.md        # copy a single item
+
+agentcfg status                        # show install state across targets
+agentcfg install obsidian-cli          # install into every target
 agentcfg install obsidian-cli -t claude
 ```
+
+## Discovery and import
+
+agentcfg ships a built-in catalog of known AI agent install directories:
+`~/.claude`, `~/.codex`, `~/.config/opencode`, `~/.config/github-copilot`,
+`~/.agents`. Discovery is opt-in:
+
+- `init` does not scan anywhere outside the source directory.
+- `discover` lists items in those catalog paths *only when they already
+  exist on disk* and you run the command explicitly.
+- Registration as a target requires `--add <name>` or `--add-all`.
+
+Use `import` to copy items found on a target back into the agentcfg
+source tree, so they become the single source of truth.
 
 ## Source layout
 

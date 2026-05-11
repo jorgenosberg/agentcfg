@@ -77,7 +77,7 @@ func DefaultPath() (string, error) {
 }
 
 // DefaultSource returns the agentcfg-owned source directory. Users can
-// populate it directly or symlink it to their own convention (e.g. ~/.ai).
+// populate it directly or symlink it to a path of their choice.
 func DefaultSource() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
