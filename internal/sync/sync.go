@@ -158,6 +158,10 @@ func sameContent(a, b string) bool {
 	return true
 }
 
+// CopyAny copies a file or directory tree from src to dst. Parent dirs of
+// dst must already exist.
+func CopyAny(src, dst string) error { return copyAny(src, dst) }
+
 func copyAny(src, dst string) error {
 	fi, err := os.Stat(src)
 	if err != nil {
@@ -185,11 +189,16 @@ func copyFile(src, dst string, mode os.FileMode) error {
 }
 
 func copyDir(src, dst string) error {
-	return filepath.Walk(src, func(p string, fi os.FileInfo, err error) error {
+	// Resolve symlinked root so Walk descends into the target directory.
+	root, err := filepath.EvalSymlinks(src)
+	if err != nil {
+		return err
+	}
+	return filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(src, p)
+		rel, err := filepath.Rel(root, p)
 		if err != nil {
 			return err
 		}
