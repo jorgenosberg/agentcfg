@@ -41,7 +41,7 @@ agentcfg install obsidian-cli -t claude
 ## Discovery and import
 
 agentcfg ships a built-in catalog of known AI agent install directories:
-`~/.claude`, `~/.codex`, `~/.config/opencode`, `~/.config/github-copilot`,
+`~/.claude`, `~/.codex`, `~/.copilot`, `~/.gemini`, `~/.config/opencode`,
 `~/.agents`. Discovery is opt-in:
 
 - `init` does not scan anywhere outside the source directory.

@@ -1,7 +1,15 @@
 // Package catalog lists well-known AI agent install directories.
 //
-// agentcfg uses this to (a) auto-populate sensible targets in `init` and
-// (b) power the `discover` command that browses existing configs.
+// agentcfg uses this to power the `discover` command. Registration as a
+// target is always explicit via `--add`.
+//
+// Sources (verified 2026-05):
+//   - Claude Code:  ~/.claude         (skills/, hooks/, CLAUDE.md)
+//   - Codex CLI:    ~/.codex          (skills/, AGENTS.md, AGENTS.override.md)
+//   - Copilot CLI:  ~/.copilot        (settings.json, mcp-config.json)
+//   - Gemini CLI:   ~/.gemini         (extensions/, GEMINI.md)
+//   - opencode:     ~/.config/opencode (skills/, AGENTS.md)
+//   - agents (opencode/Claude compat): ~/.agents (skills/, AGENTS.md)
 package catalog
 
 import (
@@ -13,47 +21,62 @@ import (
 )
 
 // KnownAgents returns the built-in catalog of agent install layouts.
-// Paths use the current user's home directory.
+//
+// A missing kind key in Subdirs means: do not scan that kind for this agent.
+// Context with subdir "" means: scan the agent root for *.md files.
 func KnownAgents() []config.Target {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil
 	}
 
-	skillsHooksContext := map[string]string{
-		source.KindSkill:   "skills",
-		source.KindHook:    "hooks",
-		source.KindContext: "",
-	}
-
 	return []config.Target{
 		{
-			Name:    "claude",
-			Path:    filepath.Join(home, ".claude"),
-			Subdirs: skillsHooksContext,
-		},
-		{
-			Name:    "codex",
-			Path:    filepath.Join(home, ".codex"),
-			Subdirs: skillsHooksContext,
-		},
-		{
-			Name:    "opencode",
-			Path:    filepath.Join(home, ".config", "opencode"),
-			Subdirs: skillsHooksContext,
-		},
-		{
-			Name: "copilot",
-			Path: filepath.Join(home, ".config", "github-copilot"),
+			Name: "claude",
+			Path: filepath.Join(home, ".claude"),
 			Subdirs: map[string]string{
-				source.KindSkill:   "prompts",
+				source.KindSkill:   "skills",
+				source.KindHook:    "hooks",
 				source.KindContext: "",
 			},
 		},
 		{
-			Name:    "agents",
-			Path:    filepath.Join(home, ".agents"),
-			Subdirs: skillsHooksContext,
+			Name: "codex",
+			Path: filepath.Join(home, ".codex"),
+			Subdirs: map[string]string{
+				source.KindSkill:   "skills",
+				source.KindContext: "",
+			},
+		},
+		{
+			Name: "copilot",
+			Path: filepath.Join(home, ".copilot"),
+			Subdirs: map[string]string{
+				source.KindContext: "",
+			},
+		},
+		{
+			Name: "gemini",
+			Path: filepath.Join(home, ".gemini"),
+			Subdirs: map[string]string{
+				source.KindContext: "",
+			},
+		},
+		{
+			Name: "opencode",
+			Path: filepath.Join(home, ".config", "opencode"),
+			Subdirs: map[string]string{
+				source.KindSkill:   "skills",
+				source.KindContext: "",
+			},
+		},
+		{
+			Name: "agents",
+			Path: filepath.Join(home, ".agents"),
+			Subdirs: map[string]string{
+				source.KindSkill:   "skills",
+				source.KindContext: "",
+			},
 		},
 	}
 }
