@@ -284,24 +284,34 @@ func abort(err error) error {
 }
 
 // contentHash returns a SHA-256 digest of a file or directory tree.
-// For directories, the hash covers the relative path and content of every
-// non-directory entry (sorted by filepath.WalkDir order) so that structural
-// differences are captured. On any I/O error the returned string is empty and
-// the error is propagated — callers should treat an empty hash as unique.
+// Symlinks are resolved with filepath.EvalSymlinks before hashing so that
+// different symlink paths pointing to the same real content produce identical
+// hashes. For directories, the hash covers the relative path and content of
+// every non-directory entry in walk order.
 func contentHash(path string) (string, error) {
-	fi, err := os.Stat(path)
+	// Resolve the root path so symlinks to the same target hash identically.
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", err
+	}
+	fi, err := os.Stat(real)
 	if err != nil {
 		return "", err
 	}
 	h := sha256.New()
 	if fi.IsDir() {
-		err = filepath.WalkDir(path, func(p string, d fs.DirEntry, walkErr error) error {
+		err = filepath.WalkDir(real, func(p string, d fs.DirEntry, walkErr error) error {
 			if walkErr != nil || d.IsDir() {
 				return walkErr
 			}
-			rel, _ := filepath.Rel(path, p)
+			// Resolve any symlinks found inside the directory as well.
+			realP, symErr := filepath.EvalSymlinks(p)
+			if symErr != nil {
+				realP = p
+			}
+			rel, _ := filepath.Rel(real, p)
 			h.Write([]byte(rel))
-			data, err := os.ReadFile(p)
+			data, err := os.ReadFile(realP)
 			if err != nil {
 				return err
 			}
@@ -309,7 +319,7 @@ func contentHash(path string) (string, error) {
 			return nil
 		})
 	} else {
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(real)
 		if err != nil {
 			return "", err
 		}
