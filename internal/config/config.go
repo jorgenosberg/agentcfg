@@ -26,8 +26,20 @@ type Config struct {
 	Source string `json:"source"`
 	// DefaultStrategy is applied to targets that do not override it.
 	DefaultStrategy string `json:"default_strategy"`
+	// Projects are repository/workspace folders scanned for in-repo agent
+	// configuration files (CLAUDE.md, .github/copilot-instructions.md, etc.).
+	// These are discovery-only and are not synced or installed by agentcfg.
+	Projects []Project `json:"projects,omitempty"`
 	// Targets are the agent directories to sync into.
 	Targets []Target `json:"targets"`
+}
+
+// Project is a repository or workspace folder to scan for in-repo agent
+// configuration files such as CLAUDE.md, .github/copilot-instructions.md,
+// .claude/skills/, .cursorrules, and similar per-agent artefacts.
+type Project struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
 }
 
 // Target is one AI agent install destination.
@@ -97,6 +109,7 @@ func Default(source string) Config {
 	return Config{
 		Source:          source,
 		DefaultStrategy: StrategyLink,
+		Projects:        []Project{},
 		Targets:         []Target{},
 	}
 }
@@ -115,6 +128,9 @@ func Load(path string) (Config, error) {
 	if err := json.Unmarshal(raw, &c); err != nil {
 		return Config{}, fmt.Errorf("parse config: %w", err)
 	}
+	if c.Projects == nil {
+		c.Projects = []Project{}
+	}
 	if c.Targets == nil {
 		c.Targets = []Target{}
 	}
@@ -128,6 +144,9 @@ func Load(path string) (Config, error) {
 func Save(path string, c Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
+	}
+	if c.Projects == nil {
+		c.Projects = []Project{}
 	}
 	if c.Targets == nil {
 		c.Targets = []Target{}
