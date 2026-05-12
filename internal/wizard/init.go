@@ -2,8 +2,10 @@
 package wizard
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -67,22 +69,71 @@ func RunInit(cfgPath, defaultSource string) error {
 	selectedTargets := targetsForNames(found, selectedTargetNames)
 
 	// ── Step 3: scan items in selected targets → choose what to import ────
-	type candidate struct {
+	// Collect every item found across all selected targets, then deduplicate:
+	// items with the same kind+name and identical content are shown once;
+	// items with the same kind+name but different content are shown with the
+	// originating agent name as a disambiguator.
+	type rawCandidate struct {
 		target config.Target
 		item   source.Item
-		key    string // "agent/kind/name" — unique selection key
+		hash   string
 	}
-	var candidates []candidate
+	var raw []rawCandidate
 	for _, t := range selectedTargets {
 		items, err := source.ScanWith(t.Path, t.Subdirs)
 		if err != nil {
 			continue
 		}
 		for _, it := range items {
+			h, err := contentHash(it.Path)
+			if err != nil {
+				h = t.Name + ":" + it.Path // can't hash → treat as unique
+			}
+			raw = append(raw, rawCandidate{target: t, item: it, hash: h})
+		}
+	}
+
+	// Group by kind/name; within each group collect distinct hashes in order.
+	type hashGroup struct {
+		entries []rawCandidate
+		hashes  map[string]bool
+	}
+	groups := map[string]*hashGroup{}
+	var groupOrder []string
+	for _, rc := range raw {
+		k := rc.item.Kind + "/" + rc.item.Name
+		if _, exists := groups[k]; !exists {
+			groups[k] = &hashGroup{hashes: map[string]bool{}}
+			groupOrder = append(groupOrder, k)
+		}
+		g := groups[k]
+		if !g.hashes[rc.hash] {
+			g.hashes[rc.hash] = true
+			g.entries = append(g.entries, rc)
+		}
+	}
+
+	// Flatten into the final deduplicated candidate list.
+	type candidate struct {
+		target config.Target
+		item   source.Item
+		key    string
+		label  string
+	}
+	var candidates []candidate
+	for _, k := range groupOrder {
+		g := groups[k]
+		multiContent := len(g.hashes) > 1
+		for _, rc := range g.entries {
+			key := rc.item.Kind + "/" + rc.item.Name
+			label := fmt.Sprintf("%-8s  %s", rc.item.Kind, rc.item.Name)
+			if multiContent {
+				// Same name, different content — show which agent it came from.
+				key = rc.target.Name + "/" + rc.item.Kind + "/" + rc.item.Name
+				label = fmt.Sprintf("%-8s  %-24s  [%s]", rc.item.Kind, rc.item.Name, rc.target.Name)
+			}
 			candidates = append(candidates, candidate{
-				target: t,
-				item:   it,
-				key:    t.Name + "/" + it.Kind + "/" + it.Name,
+				target: rc.target, item: rc.item, key: key, label: label,
 			})
 		}
 	}
@@ -91,10 +142,7 @@ func RunInit(cfgPath, defaultSource string) error {
 	if len(candidates) > 0 {
 		opts := make([]huh.Option[string], len(candidates))
 		for i, c := range candidates {
-			opts[i] = huh.NewOption(
-				fmt.Sprintf("%-10s  %-8s  %s", c.target.Name, c.item.Kind, c.item.Name),
-				c.key,
-			)
+			opts[i] = huh.NewOption(c.label, c.key)
 		}
 		if err := huh.NewForm(
 			huh.NewGroup(
@@ -233,4 +281,42 @@ func abort(err error) error {
 		return fmt.Errorf("aborted")
 	}
 	return err
+}
+
+// contentHash returns a SHA-256 digest of a file or directory tree.
+// For directories, the hash covers the relative path and content of every
+// non-directory entry (sorted by filepath.WalkDir order) so that structural
+// differences are captured. On any I/O error the returned string is empty and
+// the error is propagated — callers should treat an empty hash as unique.
+func contentHash(path string) (string, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	if fi.IsDir() {
+		err = filepath.WalkDir(path, func(p string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil || d.IsDir() {
+				return walkErr
+			}
+			rel, _ := filepath.Rel(path, p)
+			h.Write([]byte(rel))
+			data, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			h.Write(data)
+			return nil
+		})
+	} else {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		h.Write(data)
+	}
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
