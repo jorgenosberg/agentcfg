@@ -14,6 +14,7 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 	"github.com/jorgenosberg/agentcfg/internal/version"
+	"github.com/jorgenosberg/agentcfg/internal/wizard"
 )
 
 // NewRoot builds the cobra command tree for the agentcfg CLI.
@@ -656,14 +657,16 @@ func newUninstallCmd(load func() (config.Config, error)) *cobra.Command {
 
 func newInitCmd(pathFlag *string) *cobra.Command {
 	var sourcePath string
+	var noInteractive bool
 	c := &cobra.Command{
 		Use:   "init",
 		Short: "Write a default config file",
 		Long: "Write a starter config at the configured path (default " +
-			"~/.agentcfg/config.json) and create the source tree skeleton. " +
-			"No target directories are scanned or registered — run " +
-			"`agentcfg discover` to see known agents and `--add` to register " +
-			"them.",
+			"~/.agentcfg/config.json) and create the source tree skeleton.\n\n" +
+			"When stdin is a terminal the command launches an interactive wizard " +
+			"that discovers installed agents, lets you register targets, and " +
+			"optionally imports items into the source tree. Pass --no-interactive " +
+			"to skip the wizard and write a bare config file.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := *pathFlag
 			if path == "" {
@@ -676,6 +679,15 @@ func newInitCmd(pathFlag *string) *cobra.Command {
 			if _, err := os.Stat(path); err == nil {
 				return fmt.Errorf("config already exists at %s", path)
 			}
+
+			// Launch interactive wizard when stdin is a real terminal.
+			fi, statErr := os.Stdin.Stat()
+			isTTY := statErr == nil && (fi.Mode()&os.ModeCharDevice) != 0
+			if isTTY && !noInteractive {
+				return wizard.RunInit(path, sourcePath)
+			}
+
+			// Non-interactive: write a bare default config.
 			cfg := config.Default(sourcePath)
 			for _, sub := range source.DefaultSubdirs {
 				if sub == "" {
@@ -695,6 +707,7 @@ func newInitCmd(pathFlag *string) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&sourcePath, "source", "", "path to source tree (default ~/.agentcfg/source)")
+	c.Flags().BoolVar(&noInteractive, "no-interactive", false, "write a bare config file without the setup wizard")
 	return c
 }
 
