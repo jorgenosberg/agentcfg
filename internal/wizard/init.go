@@ -53,7 +53,7 @@ func RunInit(cfgPath, defaultSource string) error {
 		for i, t := range found {
 			agentNames[i] = t.Name
 		}
-		if gallery := icons.Gallery(agentNames, 6, 18, 18, 18); gallery != "" {
+		if gallery := icons.Gallery(agentNames, 10, 18, 18, 18); gallery != "" {
 			fmt.Print(gallery)
 		}
 	}

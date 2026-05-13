@@ -86,7 +86,7 @@ func RenderLine(agent string, cols int, vFrac float64, bgR, bgG, bgB uint8) stri
 	bounds := img.Bounds()
 	srcW := bounds.Max.X - bounds.Min.X
 	srcH := bounds.Max.Y - bounds.Min.Y
-	rows := cols * 2
+	rows := cols // consistent with renderHalfBlocks: square aspect ratio
 	y := int(vFrac * float64(rows))
 	if y >= rows-1 {
 		y = rows - 2
@@ -169,7 +169,11 @@ func renderHalfBlocks(img image.Image, cols int, bgR, bgG, bgB uint8) string {
 	bounds := img.Bounds()
 	srcW := bounds.Max.X - bounds.Min.X
 	srcH := bounds.Max.Y - bounds.Min.Y
-	rows := cols * 2
+	// rows = cols (not cols*2) so the output is visually square: each terminal
+	// character cell is ~2:1 (height:width), and half-blocks give 2 vertical
+	// "pixels" per row, so rows=cols yields cols chars wide × cols/2 lines tall,
+	// which is cols×cw wide and cols/2 × 2cw = cols×cw tall → square.
+	rows := cols
 	var sb strings.Builder
 	for y := 0; y < rows-1; y += 2 {
 		for x := 0; x < cols; x++ {
