@@ -20,8 +20,11 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+
+	charmbterm "github.com/charmbracelet/x/term"
 )
 
 //go:embed data/*.png
@@ -233,13 +236,14 @@ func Gallery(agents []string, cols int, bgR, bgG, bgB uint8) string {
 		lines []string
 		name  string
 	}
+	// Each icon is cols/2 terminal lines tall (rows=cols → cols/2 output lines).
+	iconLines := cols / 2
 	var items []rendered
 	for _, a := range agents {
 		r := Render(a, cols, bgR, bgG, bgB)
 		if r == "" {
-			// Placeholder block for agents without an icon
 			placeholder := strings.Repeat("▒", cols)
-			lines := make([]string, cols)
+			lines := make([]string, iconLines)
 			for i := range lines {
 				lines[i] = placeholder
 			}
@@ -282,6 +286,53 @@ func Gallery(agents []string, cols int, bgR, bgG, bgB uint8) string {
 	}
 	sb.WriteByte('\n')
 	return sb.String()
+}
+
+// GalleryAdaptive renders a half-block gallery, automatically adapting the
+// icon width to fill the current terminal without wrapping.
+func GalleryAdaptive(agents []string, bgR, bgG, bgB uint8) string {
+	cols := adaptiveCols(len(agents))
+	return Gallery(agents, cols, bgR, bgG, bgB)
+}
+
+// GalleryKittyAdaptive renders a Kitty-protocol gallery with icon size
+// adapted to the current terminal width.
+func GalleryKittyAdaptive(agents []string) string {
+	iconCols := adaptiveCols(len(agents))
+	return GalleryKitty(agents, iconCols, iconCols/2)
+}
+
+// adaptiveCols returns the optimal icon column width for a gallery of
+// numAgents icons in the current terminal. The result is always even
+// (required by the half-block renderer which steps rows by 2).
+func adaptiveCols(numAgents int) int {
+	if numAgents <= 0 {
+		return 12
+	}
+	w := terminalWidth()
+	const gapW = 2 // chars between icons
+	cols := (w - gapW*(numAgents-1)) / numAgents
+	if cols < 8 {
+		cols = 8
+	}
+	if cols > 22 {
+		cols = 22
+	}
+	return cols &^ 1 // round down to even so rows=cols covers the full image
+}
+
+// terminalWidth returns the current terminal column count, queried via
+// charmbracelet/x/term. Falls back to the COLUMNS env var, then 80.
+func terminalWidth() int {
+	if w, _, err := charmbterm.GetSize(os.Stdout.Fd()); err == nil && w > 0 {
+		return w
+	}
+	if s := os.Getenv("COLUMNS"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 80
 }
 
 func renderHalfBlocks(img image.Image, cols int, bgR, bgG, bgB uint8) string {
