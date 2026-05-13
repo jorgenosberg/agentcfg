@@ -14,6 +14,7 @@ import (
 
 	"github.com/jorgenosberg/agentcfg/internal/catalog"
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/icons"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 )
@@ -45,6 +46,18 @@ func RunInit(cfgPath, defaultSource string) error {
 
 	// ── Step 2: discover agents → select sync targets ─────────────────────
 	found := catalog.Discover()
+
+	// Show a gallery of agent icons for discovered targets.
+	if len(found) > 0 {
+		agentNames := make([]string, len(found))
+		for i, t := range found {
+			agentNames[i] = t.Name
+		}
+		if gallery := icons.Gallery(agentNames, 6, 18, 18, 18); gallery != "" {
+			fmt.Print(gallery)
+		}
+	}
+
 	var selectedTargetNames []string
 	if len(found) > 0 {
 		opts := make([]huh.Option[string], len(found))
