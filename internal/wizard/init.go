@@ -53,7 +53,15 @@ func RunInit(cfgPath, defaultSource string) error {
 		for i, t := range found {
 			agentNames[i] = t.Name
 		}
-		if gallery := icons.Gallery(agentNames, 10, 18, 18, 18); gallery != "" {
+		var gallery string
+		if icons.IsKittySupported() {
+			// iconCols=10, iconRows=5 → square on typical 2:1 monospace cells
+			gallery = icons.GalleryKitty(agentNames, 10, 5)
+		}
+		if gallery == "" {
+			gallery = icons.Gallery(agentNames, 10, 18, 18, 18)
+		}
+		if gallery != "" {
 			fmt.Print(gallery)
 		}
 	}

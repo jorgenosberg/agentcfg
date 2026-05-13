@@ -1,17 +1,25 @@
 // Package icons provides agent logo rendering for terminal display.
-// Logos are embedded as 64×64 RGBA PNGs and rendered as Unicode half-block
-// (▀/▄) art using true-colour ANSI escape sequences. Each character cell
-// represents two vertical pixels, so Render(agent, cols, ...) produces a
-// block cols characters wide and cols characters tall.
+// Logos are embedded as 64×64 RGBA PNGs. Two rendering backends are provided:
+//
+//   - Kitty graphics protocol (IsKittySupported): sends the raw PNG to the
+//     terminal which scales it to the requested cell dimensions. Used by
+//     Ghostty, the Kitty terminal, and any terminal with Kitty protocol support.
+//     Produces sharp, high-quality output at any size.
+//
+//   - Unicode half-block art (Gallery / Render / RenderLine): renders logos as
+//     ▀ characters with true-colour ANSI foreground/background pairs, using
+//     area-averaging for smooth downscaling. Fallback for all other terminals.
 package icons
 
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"image"
 	"image/color"
-	_ "image/png"
+	"image/png"
+	"os"
 	"strings"
 	"sync"
 )
@@ -63,7 +71,118 @@ func Has(agent string) bool {
 	return ok
 }
 
-// Render returns a multi-line ANSI string showing agent's logo as half-block
+// ── Kitty graphics protocol ───────────────────────────────────────────────────
+
+// IsKittySupported reports whether the running terminal supports the Kitty
+// graphics protocol. Ghostty and the Kitty terminal both qualify.
+func IsKittySupported() bool {
+	switch os.Getenv("TERM_PROGRAM") {
+	case "ghostty", "kitty":
+		return true
+	}
+	return os.Getenv("TERM") == "xterm-kitty"
+}
+
+// GalleryKitty renders agent logos side-by-side as a single Kitty graphics
+// protocol image. Each icon occupies iconCols terminal columns; iconRows sets
+// the display height. For square icons on typical 2:1 (height:width) fonts,
+// use iconRows = iconCols / 2 (e.g., cols=10, rows=5).
+//
+// Returns an empty string when no logos are found.
+func GalleryKitty(agents []string, iconCols, iconRows int) string {
+	type entry struct {
+		name string
+		img  image.Image
+	}
+	var items []entry
+	for _, a := range agents {
+		if img, ok := decodedImage(a); ok {
+			items = append(items, entry{a, img})
+		}
+	}
+	if len(items) == 0 {
+		return ""
+	}
+
+	n := len(items)
+	const srcPx = 64    // source image dimensions (64×64)
+	const gapCols = 1   // terminal column gap between icons
+	// Keep gap pixels proportional to column gap so terminal scaling is exact.
+	gapPx := srcPx * gapCols / iconCols
+	totalW := n*srcPx + (n-1)*gapPx
+
+	// Compose logos into a single horizontal strip.
+	composed := image.NewRGBA(image.Rect(0, 0, totalW, srcPx))
+	for i, it := range items {
+		x0 := i * (srcPx + gapPx)
+		b := it.img.Bounds()
+		sw, sh := b.Max.X-b.Min.X, b.Max.Y-b.Min.Y
+		for y := 0; y < srcPx; y++ {
+			for x := 0; x < srcPx; x++ {
+				sx := b.Min.X + x*sw/srcPx
+				sy := b.Min.Y + y*sh/srcPx
+				composed.Set(x0+x, y, it.img.At(sx, sy))
+			}
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, composed); err != nil {
+		return ""
+	}
+
+	totalCols := n*iconCols + (n-1)*gapCols
+	var sb strings.Builder
+	sb.WriteString(kittyEncode(buf.Bytes(), totalCols, iconRows))
+	sb.WriteByte('\n')
+
+	// Labels centred under each icon.
+	for i, it := range items {
+		if i > 0 {
+			sb.WriteString(strings.Repeat(" ", gapCols))
+		}
+		lbl := it.name
+		if len(lbl) > iconCols {
+			lbl = lbl[:iconCols]
+		}
+		pad := iconCols - len(lbl)
+		sb.WriteString(strings.Repeat(" ", pad/2))
+		sb.WriteString(lbl)
+		sb.WriteString(strings.Repeat(" ", pad-pad/2))
+	}
+	sb.WriteByte('\n')
+	return sb.String()
+}
+
+// kittyEncode encodes pngData as a Kitty graphics protocol APC sequence
+// occupying cols×rows terminal cells. Automatically chunks large payloads.
+func kittyEncode(pngData []byte, cols, rows int) string {
+	encoded := base64.StdEncoding.EncodeToString(pngData)
+	const maxChunk = 4096
+	var sb strings.Builder
+	for i := 0; i < len(encoded); i += maxChunk {
+		end := i + maxChunk
+		if end > len(encoded) {
+			end = len(encoded)
+		}
+		chunk := encoded[i:end]
+		m := "0"
+		if end < len(encoded) {
+			m = "1"
+		}
+		var params string
+		if i == 0 {
+			params = fmt.Sprintf("a=T,f=100,c=%d,r=%d,m=%s", cols, rows, m)
+		} else {
+			params = fmt.Sprintf("m=%s", m)
+		}
+		fmt.Fprintf(&sb, "\x1b_G%s;%s\x1b\\", params, chunk)
+	}
+	return sb.String()
+}
+
+// ── Half-block fallback ───────────────────────────────────────────────────────
+
 // art, cols characters wide and cols lines tall. bgR/bgG/bgB are the terminal
 // background colour used for alpha compositing. Returns an empty string if no
 // logo exists for agent.
