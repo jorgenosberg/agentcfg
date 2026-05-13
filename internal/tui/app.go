@@ -28,6 +28,15 @@ func Run(cfg config.Config) error {
 		return err
 	}
 	projectItems := scanAllProjects(cfg)
+
+	// Preload agent logo images while still in the normal screen so the
+	// terminal has them cached before the alt screen takes over.
+	names := make([]string, 0, len(cfg.Targets))
+	for _, t := range cfg.Targets {
+		names = append(names, t.Name)
+	}
+	icons.Preload(names)
+
 	m := newModel(cfg, items, projectItems)
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
 	return err
@@ -189,16 +198,8 @@ func (m model) renderSourceView(b []byte) []byte {
 		b = append(b, '\n')
 		return b
 	}
-	// Precompute group sizes so each agent's icon spans its full group.
-	groupCount := map[string]int{}
-	for _, e := range m.entries {
-		groupCount[e.Target.Name]++
-	}
-	groupIdx := map[string]int{}
 	for i, e := range m.entries {
-		vFrac := float64(groupIdx[e.Target.Name]) / float64(groupCount[e.Target.Name])
-		groupIdx[e.Target.Name]++
-		icon := iconStrip(e.Target.Name, vFrac)
+		icon := iconStrip(e.Target.Name)
 		line := fmt.Sprintf("%-8s  %-7s  %-24s  %s", e.Target.Name, e.Item.Kind, e.Item.Name, e.Status)
 		b = append(b, icon...)
 		if i == m.cursor {
@@ -221,16 +222,8 @@ func (m model) renderProjectsView(b []byte) []byte {
 		b = append(b, '\n')
 		return b
 	}
-	// Precompute group sizes so each agent's icon spans its full group.
-	groupCount := map[string]int{}
-	for _, it := range m.projectItems {
-		groupCount[it.Agent]++
-	}
-	groupIdx := map[string]int{}
 	for i, it := range m.projectItems {
-		vFrac := float64(groupIdx[it.Agent]) / float64(groupCount[it.Agent])
-		groupIdx[it.Agent]++
-		icon := iconStrip(it.Agent, vFrac)
+		icon := iconStrip(it.Agent)
 		line := fmt.Sprintf("%-14s  %-10s  %-7s  %-24s  %s", it.Project, it.Agent, it.Kind, it.Name, it.RelPath)
 		b = append(b, icon...)
 		if i == m.cursor {
@@ -243,13 +236,13 @@ func (m model) renderProjectsView(b []byte) []byte {
 	return b
 }
 
-// iconStrip returns a 4-char-wide half-block icon strip for agent at the
-// given vertical fraction (0–1) of the logo, with a trailing space. Falls
-// back to spaces when no logo is available so column alignment is preserved.
-func iconStrip(agent string, vFrac float64) string {
-	const cols = 4
+// iconStrip returns a 4-char-wide half-block badge for agent with a trailing
+// space. Falls back to spaces when no logo is available so column alignment
+// is preserved.
+func iconStrip(agent string) string {
+	const cols = 3
 	if icons.Has(agent) {
-		return icons.RenderLine(agent, cols, vFrac, 18, 18, 18) + " "
+		return icons.Badge(agent, cols) + " "
 	}
 	return strings.Repeat(" ", cols+1)
 }

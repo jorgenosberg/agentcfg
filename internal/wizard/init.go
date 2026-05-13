@@ -47,35 +47,26 @@ func RunInit(cfgPath, defaultSource string) error {
 	// ── Step 2: discover agents → select sync targets ─────────────────────
 	found := catalog.Discover()
 
-	// Show a gallery of agent icons for discovered targets.
 	if len(found) > 0 {
-		agentNames := make([]string, len(found))
+		names := make([]string, len(found))
 		for i, t := range found {
-			agentNames[i] = t.Name
+			names[i] = t.Name
 		}
-		var gallery string
-		if icons.IsKittySupported() {
-			gallery = icons.GalleryKittyAdaptive(agentNames)
-		}
-		if gallery == "" {
-			gallery = icons.GalleryAdaptive(agentNames, 18, 18, 18)
-		}
-		if gallery != "" {
-			fmt.Print(gallery)
-		}
+		icons.Preload(names)
 	}
 
 	var selectedTargetNames []string
 	if len(found) > 0 {
 		opts := make([]huh.Option[string], len(found))
 		for i, t := range found {
-			opts[i] = huh.NewOption(fmt.Sprintf("%-10s  %s", t.Name, t.Path), t.Name)
+			badge := icons.Badge(t.Name, 3)
+			opts[i] = huh.NewOption(fmt.Sprintf("%s  %-10s  %s", badge, t.Name, t.Path), t.Name)
 		}
 		if err := huh.NewForm(
 			huh.NewGroup(
 				huh.NewMultiSelect[string]().
 					Title("Sync targets").
-					Description("Select agent directories to register (space to toggle, a for all).").
+					Description("Select agent directories to register (space to toggle, ctrl+a for all).").
 					Options(opts...).
 					Value(&selectedTargetNames),
 			),
@@ -146,11 +137,12 @@ func RunInit(cfgPath, defaultSource string) error {
 		multiContent := len(g.hashes) > 1
 		for _, rc := range g.entries {
 			key := rc.item.Kind + "/" + rc.item.Name
-			label := fmt.Sprintf("%-8s  %s", rc.item.Kind, rc.item.Name)
+			badge := icons.Badge(rc.target.Name, 3)
+			label := fmt.Sprintf("%s  %-8s  %s", badge, rc.item.Kind, rc.item.Name)
 			if multiContent {
 				// Same name, different content — show which agent it came from.
 				key = rc.target.Name + "/" + rc.item.Kind + "/" + rc.item.Name
-				label = fmt.Sprintf("%-8s  %-24s  [%s]", rc.item.Kind, rc.item.Name, rc.target.Name)
+				label = fmt.Sprintf("%s  %-8s  %-24s  [%s]", badge, rc.item.Kind, rc.item.Name, rc.target.Name)
 			}
 			candidates = append(candidates, candidate{
 				target: rc.target, item: rc.item, key: key, label: label,
@@ -168,7 +160,7 @@ func RunInit(cfgPath, defaultSource string) error {
 			huh.NewGroup(
 				huh.NewMultiSelect[string]().
 					Title("Import items").
-					Description("Items to copy into your source tree now (space to toggle, a for all).").
+					Description("Items to copy into your source tree now (space to toggle, ctrl+a for all).").
 					Options(opts...).
 					Value(&selectedKeys),
 			),
