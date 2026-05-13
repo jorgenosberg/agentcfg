@@ -93,11 +93,13 @@ func RenderLine(agent string, cols int, vFrac float64, bgR, bgG, bgB uint8) stri
 	}
 	var sb strings.Builder
 	for x := 0; x < cols; x++ {
-		sx := bounds.Min.X + x*srcW/cols
-		sy1 := bounds.Min.Y + y*srcH/rows
-		sy2 := bounds.Min.Y + (y+1)*srcH/rows
-		tr, tg, tb := composite(img.At(sx, sy1), bgR, bgG, bgB)
-		br, bg_, bb := composite(img.At(sx, sy2), bgR, bgG, bgB)
+		sx0 := bounds.Min.X + x*srcW/cols
+		sx1 := bounds.Min.X + (x+1)*srcW/cols
+		sy0 := bounds.Min.Y + y*srcH/rows
+		sy1 := bounds.Min.Y + (y+1)*srcH/rows
+		sy2 := bounds.Min.Y + (y+2)*srcH/rows
+		tr, tg, tb := avgRegion(img, sx0, sy0, sx1, sy1, bgR, bgG, bgB)
+		br, bg_, bb := avgRegion(img, sx0, sy1, sx1, sy2, bgR, bgG, bgB)
 		sb.WriteString(fmt.Sprintf("\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀", tr, tg, tb, br, bg_, bb))
 	}
 	sb.WriteString("\x1b[0m")
@@ -171,11 +173,13 @@ func renderHalfBlocks(img image.Image, cols int, bgR, bgG, bgB uint8) string {
 	var sb strings.Builder
 	for y := 0; y < rows-1; y += 2 {
 		for x := 0; x < cols; x++ {
-			sx := bounds.Min.X + x*srcW/cols
-			sy1 := bounds.Min.Y + y*srcH/rows
-			sy2 := bounds.Min.Y + (y+1)*srcH/rows
-			tr, tg, tb := composite(img.At(sx, sy1), bgR, bgG, bgB)
-			br, bg_, bb := composite(img.At(sx, sy2), bgR, bgG, bgB)
+			sx0 := bounds.Min.X + x*srcW/cols
+			sx1 := bounds.Min.X + (x+1)*srcW/cols
+			sy0 := bounds.Min.Y + y*srcH/rows
+			sy1 := bounds.Min.Y + (y+1)*srcH/rows
+			sy2 := bounds.Min.Y + (y+2)*srcH/rows
+			tr, tg, tb := avgRegion(img, sx0, sy0, sx1, sy1, bgR, bgG, bgB)
+			br, bg_, bb := avgRegion(img, sx0, sy1, sx1, sy2, bgR, bgG, bgB)
 			sb.WriteString(fmt.Sprintf("\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀", tr, tg, tb, br, bg_, bb))
 		}
 		sb.WriteString("\x1b[0m\n")
@@ -183,10 +187,36 @@ func renderHalfBlocks(img image.Image, cols int, bgR, bgG, bgB uint8) string {
 	return sb.String()
 }
 
+// avgRegion averages composited pixel colours in source region [sx0,sx1)×[sy0,sy1).
+// At least one pixel is always sampled (clamps empty regions to a single pixel).
+func avgRegion(img image.Image, sx0, sy0, sx1, sy1 int, bgR, bgG, bgB uint8) (uint8, uint8, uint8) {
+	if sx1 <= sx0 {
+		sx1 = sx0 + 1
+	}
+	if sy1 <= sy0 {
+		sy1 = sy0 + 1
+	}
+	var rSum, gSum, bSum float64
+	count := 0
+	for py := sy0; py < sy1; py++ {
+		for px := sx0; px < sx1; px++ {
+			r, g, b := composite(img.At(px, py), bgR, bgG, bgB)
+			rSum += float64(r)
+			gSum += float64(g)
+			bSum += float64(b)
+			count++
+		}
+	}
+	return uint8(rSum / float64(count)), uint8(gSum / float64(count)), uint8(bSum / float64(count))
+}
+
 func composite(c color.Color, bgR, bgG, bgB uint8) (uint8, uint8, uint8) {
 	r, g, b, a := c.RGBA()
+	// c.RGBA() returns alpha-premultiplied values in [0, 65535].
+	// r>>8 is already actual_r*alpha in [0,255]. The correct Porter-Duff "over"
+	// composite with premultiplied source is: out = src_premul + bg*(1−alpha).
 	af := float64(a) / 65535.0
-	return uint8(float64(r>>8)*af + float64(bgR)*(1-af)),
-		uint8(float64(g>>8)*af + float64(bgG)*(1-af)),
-		uint8(float64(b>>8)*af + float64(bgB)*(1-af))
+	return uint8(float64(r>>8) + float64(bgR)*(1-af)),
+		uint8(float64(g>>8) + float64(bgG)*(1-af)),
+		uint8(float64(b>>8) + float64(bgB)*(1-af))
 }
