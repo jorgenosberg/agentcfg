@@ -59,7 +59,7 @@ func RunInit(cfgPath, defaultSource string) error {
 	if len(found) > 0 {
 		opts := make([]huh.Option[string], len(found))
 		for i, t := range found {
-			badge := icons.Badge(t.Name, 3)
+			badge := icons.TextBadge(t.Name, 3)
 			opts[i] = huh.NewOption(fmt.Sprintf("%s  %-10s  %s", badge, t.Name, t.Path), t.Name)
 		}
 		if err := huh.NewForm(
@@ -96,7 +96,7 @@ func RunInit(cfgPath, defaultSource string) error {
 			continue
 		}
 		for _, it := range items {
-			h, err := contentHash(it.Path)
+			h, err := ContentHash(it.Path)
 			if err != nil {
 				h = t.Name + ":" + it.Path // can't hash → treat as unique
 			}
@@ -137,7 +137,7 @@ func RunInit(cfgPath, defaultSource string) error {
 		multiContent := len(g.hashes) > 1
 		for _, rc := range g.entries {
 			key := rc.item.Kind + "/" + rc.item.Name
-			badge := icons.Badge(rc.target.Name, 3)
+			badge := icons.TextBadge(rc.target.Name, 3)
 			label := fmt.Sprintf("%s  %-8s  %s", badge, rc.item.Kind, rc.item.Name)
 			if multiContent {
 				// Same name, different content — show which agent it came from.
@@ -295,12 +295,9 @@ func abort(err error) error {
 	return err
 }
 
-// contentHash returns a SHA-256 digest of a file or directory tree.
-// Symlinks are resolved with filepath.EvalSymlinks before hashing so that
-// different symlink paths pointing to the same real content produce identical
-// hashes. For directories, the hash covers the relative path and content of
-// every non-directory entry in walk order.
-func contentHash(path string) (string, error) {
+// ContentHash returns a SHA-256 digest of a file or directory tree.
+// Symlinks are resolved so different paths to the same content hash identically.
+func ContentHash(path string) (string, error) {
 	// Resolve the root path so symlinks to the same target hash identically.
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
@@ -316,7 +313,6 @@ func contentHash(path string) (string, error) {
 			if walkErr != nil || d.IsDir() {
 				return walkErr
 			}
-			// Resolve any symlinks found inside the directory as well.
 			realP, symErr := filepath.EvalSymlinks(p)
 			if symErr != nil {
 				realP = p
