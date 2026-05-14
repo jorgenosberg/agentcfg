@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"bytes"
 	"fmt"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,8 +23,7 @@ const (
 	viewProjects                 // project-local agent configuration files
 )
 
-// Run starts the lazycfg TUI.
-func Run(cfg config.Config) error {
+func Run(cfgPath string, cfg config.Config) error {
 	items, err := source.Scan(cfg.Source)
 	if err != nil {
 		return err
@@ -31,13 +32,9 @@ func Run(cfg config.Config) error {
 
 	// Preload agent logo images while still in the normal screen so the
 	// terminal has them cached before the alt screen takes over.
-	names := make([]string, 0, len(cfg.Targets))
-	for _, t := range cfg.Targets {
-		names = append(names, t.Name)
-	}
-	icons.Preload(names)
+	icons.Preload(targetNamesFromConfig(cfg))
 
-	m := newModel(cfg, items, projectItems)
+	m := newModel(cfgPath, cfg, items, projectItems)
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
 	return err
 }
@@ -55,19 +52,24 @@ func scanAllProjects(cfg config.Config) []source.ProjectItem {
 }
 
 type model struct {
+	cfgPath      string
 	cfg          config.Config
 	items        []source.Item
 	entries      []sync.Entry
 	projectItems []source.ProjectItem
 	cursor       int
+	offset       int
 	width        int
 	height       int
 	status       string
 	mode         viewMode
+	sourceKind   string // kind filter for source view: "" = all, else KindSkill/Hook/Context
+	overlay      overlayModel
 }
 
-func newModel(cfg config.Config, items []source.Item, projectItems []source.ProjectItem) model {
+func newModel(cfgPath string, cfg config.Config, items []source.Item, projectItems []source.ProjectItem) model {
 	return model{
+		cfgPath:      cfgPath,
 		cfg:          cfg,
 		items:        items,
 		entries:      sync.Inspect(cfg, items),
@@ -78,33 +80,175 @@ func newModel(cfg config.Config, items []source.Item, projectItems []source.Proj
 
 func (m model) Init() tea.Cmd { return nil }
 
+func (m model) panelWidths() (int, int) {
+	if m.width == 0 {
+		return 80, 0
+	}
+	leftW := max(50, m.width*2/5)
+	rightW := m.width - leftW - 1
+	if rightW < 24 {
+		return m.width, 0
+	}
+	return leftW, rightW
+}
+
+func (m model) listHeight() int {
+	if m.height == 0 {
+		return 20
+	}
+	if h := m.height - 6; h >= 1 {
+		return h
+	}
+	return 1
+}
+
+func (m model) filteredEntries() []sync.Entry {
+	if m.sourceKind == "" {
+		return m.entries
+	}
+	out := make([]sync.Entry, 0, len(m.entries))
+	for _, e := range m.entries {
+		if e.Item.Kind == m.sourceKind {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func (m model) currentLen() int {
+	if m.mode == viewProjects {
+		return len(m.projectItems)
+	}
+	return len(m.filteredEntries())
+}
+
+func (m model) adjustOffset() model {
+	lh := m.listHeight()
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	} else if m.cursor >= m.offset+lh {
+		m.offset = m.cursor - lh + 1
+	}
+	return m
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m = m.adjustOffset()
+
+	case cfgReloadMsg:
+		if msg.err != nil {
+			m.status = "error: " + msg.err.Error()
+			return m, nil
+		}
+		cfg, err := config.Load(m.cfgPath)
+		if err != nil {
+			m.status = "reload error: " + err.Error()
+			return m, nil
+		}
+		m.cfg = cfg
+		items, _ := source.Scan(cfg.Source)
+		m.items = items
+		m.entries = sync.Inspect(cfg, items)
+		m.projectItems = scanAllProjects(cfg)
+		icons.Preload(targetNamesFromConfig(cfg))
+		if n := m.currentLen(); m.cursor >= n {
+			m.cursor = max(0, n-1)
+		}
+		m = m.adjustOffset()
+		m.status = "ready"
+
 	case tea.KeyMsg:
+		if m.overlay != nil {
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+			next, cmd := m.overlay.Update(msg)
+			m.overlay = next
+			return m, cmd
+		}
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
+		case "?":
+			m.overlay = newHelpOverlay()
+		case "1":
+			if m.mode != viewSource {
+				m.mode = viewSource
+				m.cursor, m.offset = 0, 0
+				m.status = "source view"
+			}
+		case "2":
+			if m.mode != viewProjects {
+				m.mode = viewProjects
+				m.cursor, m.offset = 0, 0
+				m.status = "projects view"
+			}
 		case "tab", "p":
 			if m.mode == viewSource {
 				m.mode = viewProjects
 			} else {
 				m.mode = viewSource
 			}
-			m.cursor = 0
+			m.cursor, m.offset = 0, 0
 			m.status = map[viewMode]string{
 				viewSource:   "source view",
 				viewProjects: "projects view",
 			}[m.mode]
 		case "j", "down":
-			max := m.currentLen() - 1
-			if m.cursor < max {
+			if m.cursor < m.currentLen()-1 {
 				m.cursor++
+				m = m.adjustOffset()
 			}
 		case "k", "up":
 			if m.cursor > 0 {
 				m.cursor--
+				m = m.adjustOffset()
+			}
+		case "g", "home":
+			m.cursor = 0
+			m = m.adjustOffset()
+		case "G", "end":
+			if n := m.currentLen(); n > 0 {
+				m.cursor = n - 1
+				m = m.adjustOffset()
+			}
+		case "ctrl+u", "pgup":
+			half := max(1, m.listHeight()/2)
+			m.cursor = max(0, m.cursor-half)
+			m = m.adjustOffset()
+		case "ctrl+d", "pgdown":
+			half := max(1, m.listHeight()/2)
+			m.cursor = min(m.currentLen()-1, m.cursor+half)
+			m = m.adjustOffset()
+		case "enter":
+			if m.mode == viewSource {
+				entries := m.filteredEntries()
+				if m.cursor < len(entries) {
+					e := entries[m.cursor]
+					if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+						m.status = "install: " + err.Error()
+					} else {
+						m.entries = sync.Inspect(m.cfg, m.items)
+						m.status = fmt.Sprintf("installed %s -> %s", e.Item.Name, e.Target.Name)
+					}
+				}
+			}
+		case "f":
+			if m.mode == viewSource {
+				switch m.sourceKind {
+				case "":
+					m.sourceKind = source.KindSkill
+				case source.KindSkill:
+					m.sourceKind = source.KindHook
+				case source.KindHook:
+					m.sourceKind = source.KindContext
+				default:
+					m.sourceKind = ""
+				}
+				m.cursor, m.offset = 0, 0
 			}
 		case "r":
 			items, err := source.Scan(m.cfg.Source)
@@ -116,129 +260,414 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.entries = sync.Inspect(m.cfg, items)
 			m.projectItems = scanAllProjects(m.cfg)
 			m.status = "rescanned"
+			if n := m.currentLen(); m.cursor >= n {
+				m.cursor = max(0, n-1)
+			}
+			m = m.adjustOffset()
+		case "I":
+			o, cmd := newInitWizardOverlay(m.cfgPath)
+			m.overlay = o
+			return m, cmd
+		case "D":
+			m.overlay = newDiscoverOverlay(m.cfgPath, m.cfg)
+		case "n":
+			if m.mode == viewSource {
+				o, cmd := newAddTargetOverlay(m.cfgPath, m.cfg)
+				m.overlay = o
+				return m, cmd
+			}
+			o, cmd := newAddProjectOverlay(m.cfgPath, m.cfg)
+			m.overlay = o
+			return m, cmd
+		case "d":
+			if m.mode == viewSource {
+				entries := m.filteredEntries()
+				if m.cursor < len(entries) {
+					targetName := entries[m.cursor].Target.Name
+					cfgPath, cfg := m.cfgPath, m.cfg
+					m.overlay = newConfirmOverlay(
+						fmt.Sprintf("Remove target %q?", targetName),
+						"Removes from config only. Installed items are not uninstalled.",
+						func() error {
+							out := make([]config.Target, 0, len(cfg.Targets))
+							for _, t := range cfg.Targets {
+								if t.Name != targetName {
+									out = append(out, t)
+								}
+							}
+							cfg.Targets = out
+							return config.Save(cfgPath, cfg)
+						},
+					)
+				}
+			} else {
+				if m.cursor < len(m.projectItems) {
+					projName := m.projectItems[m.cursor].Project
+					cfgPath, cfg := m.cfgPath, m.cfg
+					m.overlay = newConfirmOverlay(
+						fmt.Sprintf("Remove project %q?", projName),
+						"Removes from config only. No files are deleted.",
+						func() error {
+							out := make([]config.Project, 0, len(cfg.Projects))
+							for _, p := range cfg.Projects {
+								if p.Name != projName {
+									out = append(out, p)
+								}
+							}
+							cfg.Projects = out
+							return config.Save(cfgPath, cfg)
+						},
+					)
+				}
+			}
 		case "i":
-			if m.mode == viewSource && m.cursor < len(m.entries) {
-				e := m.entries[m.cursor]
-				if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-					m.status = "install: " + err.Error()
-				} else {
-					m.entries = sync.Inspect(m.cfg, m.items)
-					m.status = fmt.Sprintf("installed %s -> %s", e.Item.Name, e.Target.Name)
+			if m.mode == viewSource {
+				entries := m.filteredEntries()
+				if m.cursor < len(entries) {
+					e := entries[m.cursor]
+					if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+						m.status = "install: " + err.Error()
+					} else {
+						m.entries = sync.Inspect(m.cfg, m.items)
+						m.status = fmt.Sprintf("installed %s -> %s", e.Item.Name, e.Target.Name)
+					}
 				}
 			}
 		case "x":
-			if m.mode == viewSource && m.cursor < len(m.entries) {
-				e := m.entries[m.cursor]
-				if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-					m.status = "uninstall: " + err.Error()
-				} else {
-					m.entries = sync.Inspect(m.cfg, m.items)
-					m.status = fmt.Sprintf("removed %s from %s", e.Item.Name, e.Target.Name)
+			if m.mode == viewSource {
+				entries := m.filteredEntries()
+				if m.cursor < len(entries) {
+					e := entries[m.cursor]
+					if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+						m.status = "uninstall: " + err.Error()
+					} else {
+						m.entries = sync.Inspect(m.cfg, m.items)
+						m.status = fmt.Sprintf("removed %s from %s", e.Item.Name, e.Target.Name)
+					}
 				}
 			}
+		}
+	default:
+		// Forward all other messages (e.g. cursor blink ticks) to active overlay.
+		if m.overlay != nil {
+			next, cmd := m.overlay.Update(msg)
+			m.overlay = next
+			return m, cmd
 		}
 	}
 	return m, nil
 }
 
-func (m model) currentLen() int {
-	if m.mode == viewProjects {
-		return len(m.projectItems)
-	}
-	return len(m.entries)
-}
-
 var (
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
-	tabStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	tabActiveStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	cursorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	dimStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	statusStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	titleStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
+	tabStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	tabActiveStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	cursorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	statusStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	borderStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	countStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	previewStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
 )
 
 func (m model) View() string {
-	var b []byte
-	b = append(b, titleStyle.Render("lazyagentcfg "+version.Version)...)
-
-	// Tab bar
-	b = append(b, "  "...)
-	sourceTab := tabStyle.Render("[1] source")
-	projectsTab := tabStyle.Render("[2] projects")
-	if m.mode == viewSource {
-		sourceTab = tabActiveStyle.Render("[1] source")
-	} else {
-		projectsTab = tabActiveStyle.Render("[2] projects")
-	}
-	b = append(b, sourceTab...)
-	b = append(b, "  "...)
-	b = append(b, projectsTab...)
-	b = append(b, '\n', '\n')
-
-	if m.mode == viewSource {
-		b = m.renderSourceView(b)
-	} else {
-		b = m.renderProjectsView(b)
+	if m.overlay != nil {
+		return m.overlay.View(m.width, m.height)
 	}
 
-	b = append(b, '\n')
-	b = append(b, statusStyle.Render(m.status)...)
-	b = append(b, '\n')
-	if m.mode == viewSource {
-		b = append(b, dimStyle.Render("j/k move · i install · x uninstall · r rescan · tab/p projects · q quit")...)
+	leftW, rightW := m.panelWidths()
+	lh := m.listHeight()
+
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("lazyagentcfg " + version.Version))
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+
+	leftLines := m.buildLeftColumn(leftW, lh)
+
+	if rightW > 0 {
+		rightLines := m.buildRightColumn(rightW, lh)
+		for i, left := range leftLines {
+			b.WriteString(padToWidth(left, leftW))
+			b.WriteByte(' ')
+			right := ""
+			if i < len(rightLines) {
+				right = rightLines[i]
+			}
+			b.WriteString(padToWidth(right, rightW))
+			b.WriteByte('\n')
+		}
 	} else {
-		b = append(b, dimStyle.Render("j/k move · r rescan · tab/p source · q quit")...)
+		for _, line := range leftLines {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
 	}
-	return string(b)
+
+	b.WriteString(m.renderFooter(m.width))
+	return b.String()
 }
 
-func (m model) renderSourceView(b []byte) []byte {
-	if len(m.entries) == 0 {
-		b = append(b, dimStyle.Render("no items found in "+m.cfg.Source)...)
-		b = append(b, '\n')
-		return b
+func (m model) buildLeftColumn(w, lh int) []string {
+	lines := make([]string, 0, lh+3)
+	lines = append(lines, m.renderPanelTop(w))
+	lines = append(lines, m.renderFilterRow(w))
+
+	if m.mode == viewSource {
+		lines = append(lines, m.buildSourceRows(lh)...)
+	} else {
+		lines = append(lines, m.buildProjectsRows(lh)...)
 	}
-	for i, e := range m.entries {
+
+	lines = append(lines, m.renderPanelBottom(w))
+	return lines
+}
+
+func (m model) buildRightColumn(w, lh int) []string {
+	lines := make([]string, 0, lh+3)
+
+	const previewLabel = "─ Preview "
+	lines = append(lines, borderStyle.Render(previewLabel+strings.Repeat("─", max(0, w-len(previewLabel)))))
+	lines = append(lines, "") // blank row matching filter row height on left
+
+	previewLines := m.buildPreviewLines(lh, w)
+	lines = append(lines, previewLines...)
+
+	lines = append(lines, borderStyle.Render(strings.Repeat("─", w)))
+	return lines
+}
+
+func (m model) buildSourceRows(lh int) []string {
+	entries := m.filteredEntries()
+	rows := make([]string, 0, lh)
+
+	if len(m.cfg.Targets) == 0 {
+		rows = append(rows, dimStyle.Render("  no targets configured — press I for setup wizard, D to discover agents, n to add manually"))
+		for len(rows) < lh {
+			rows = append(rows, "")
+		}
+		return rows
+	}
+	if len(entries) == 0 {
+		rows = append(rows, dimStyle.Render("  no items found in "+m.cfg.Source))
+		for len(rows) < lh {
+			rows = append(rows, "")
+		}
+		return rows
+	}
+
+	end := min(m.offset+lh, len(entries))
+	for i := m.offset; i < end; i++ {
+		e := entries[i]
 		icon := iconStrip(e.Target.Name)
 		line := fmt.Sprintf("%-8s  %-7s  %-24s  %s", e.Target.Name, e.Item.Kind, e.Item.Name, e.Status)
-		b = append(b, icon...)
 		if i == m.cursor {
-			b = append(b, cursorStyle.Render("▶ "+line)...)
+			rows = append(rows, icon+cursorStyle.Render("▶ "+line))
 		} else {
-			b = append(b, ("  " + line)...)
+			rows = append(rows, icon+"  "+line)
 		}
-		b = append(b, '\n')
 	}
-	return b
+	for len(rows) < lh {
+		rows = append(rows, "")
+	}
+	return rows
 }
 
-func (m model) renderProjectsView(b []byte) []byte {
+func (m model) buildProjectsRows(lh int) []string {
+	rows := make([]string, 0, lh)
+
 	if len(m.projectItems) == 0 {
+		msg := "  no agent configuration files found in configured projects"
 		if len(m.cfg.Projects) == 0 {
-			b = append(b, dimStyle.Render("no projects configured — add one with: agentcfg project add <name> <path>")...)
-		} else {
-			b = append(b, dimStyle.Render("no agent configuration files found in configured projects")...)
+			msg = "  no projects configured — add one with: agentcfg project add <name> <path>"
 		}
-		b = append(b, '\n')
-		return b
+		rows = append(rows, dimStyle.Render(msg))
+		for len(rows) < lh {
+			rows = append(rows, "")
+		}
+		return rows
 	}
-	for i, it := range m.projectItems {
+
+	end := min(m.offset+lh, len(m.projectItems))
+	for i := m.offset; i < end; i++ {
+		it := m.projectItems[i]
 		icon := iconStrip(it.Agent)
 		line := fmt.Sprintf("%-14s  %-10s  %-7s  %-24s  %s", it.Project, it.Agent, it.Kind, it.Name, it.RelPath)
-		b = append(b, icon...)
 		if i == m.cursor {
-			b = append(b, cursorStyle.Render("▶ "+line)...)
+			rows = append(rows, icon+cursorStyle.Render("▶ "+line))
 		} else {
-			b = append(b, ("  " + line)...)
+			rows = append(rows, icon+"  "+line)
 		}
-		b = append(b, '\n')
 	}
-	return b
+	for len(rows) < lh {
+		rows = append(rows, "")
+	}
+	return rows
 }
 
-// iconStrip returns a 4-char-wide half-block badge for agent with a trailing
-// space. Falls back to spaces when no logo is available so column alignment
-// is preserved.
+func (m model) buildPreviewLines(lh, w int) []string {
+	path, isDir, ok := m.currentPreviewPath()
+	var raw []string
+	if ok {
+		raw = readPreview(path, isDir, lh, w)
+	}
+	lines := make([]string, lh)
+	for i := range lines {
+		if i < len(raw) {
+			lines[i] = raw[i]
+		}
+	}
+	return lines
+}
+
+func (m model) currentPreviewPath() (path string, isDir bool, ok bool) {
+	if m.mode == viewSource {
+		entries := m.filteredEntries()
+		if m.cursor >= len(entries) {
+			return "", false, false
+		}
+		e := entries[m.cursor]
+		return e.Item.Path, e.Item.Kind == source.KindSkill, true
+	}
+	if m.cursor >= len(m.projectItems) {
+		return "", false, false
+	}
+	it := m.projectItems[m.cursor]
+	return it.Path, it.Kind == source.KindSkill, true
+}
+
+func readPreview(path string, isDir bool, maxLines, maxWidth int) []string {
+	if isDir {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return []string{dimStyle.Render("  " + err.Error())}
+		}
+		lines := make([]string, 0, min(len(entries), maxLines))
+		for _, e := range entries {
+			if len(lines) >= maxLines {
+				break
+			}
+			name := e.Name()
+			if e.IsDir() {
+				name += "/"
+			}
+			lines = append(lines, previewStyle.Render(" "+truncateRunes(name, maxWidth-1)))
+		}
+		return lines
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return []string{dimStyle.Render("  " + err.Error())}
+	}
+
+	// Binary detection via null-byte scan of the first 512 bytes.
+	check := data
+	if len(check) > 512 {
+		check = check[:512]
+	}
+	if bytes.IndexByte(check, 0) >= 0 {
+		return []string{dimStyle.Render("  [binary file]")}
+	}
+
+	rawLines := strings.Split(string(data), "\n")
+	result := make([]string, 0, min(len(rawLines), maxLines))
+	for i, line := range rawLines {
+		if i >= maxLines {
+			break
+		}
+		result = append(result, previewStyle.Render(" "+truncateRunes(line, maxWidth-1)))
+	}
+	return result
+}
+
+func (m model) renderPanelTop(w int) string {
+	var s1, s2 string
+	if m.mode == viewSource {
+		s1 = tabActiveStyle.Render("[1] source")
+		s2 = tabStyle.Render("[2] projects")
+	} else {
+		s1 = tabStyle.Render("[1] source")
+		s2 = tabActiveStyle.Render("[2] projects")
+	}
+	const plainWidth = 1 + 10 + 2 + 12
+	pad := strings.Repeat("─", max(0, w-plainWidth))
+	return borderStyle.Render("─") + s1 + borderStyle.Render("──") + s2 + borderStyle.Render(pad)
+}
+
+func (m model) renderFilterRow(w int) string {
+	if m.mode != viewSource {
+		return ""
+	}
+	filters := []struct{ kind, label string }{
+		{"", "all"},
+		{source.KindSkill, "skills"},
+		{source.KindHook, "hooks"},
+		{source.KindContext, "context"},
+	}
+	sep := dimStyle.Render(" · ")
+	parts := make([]string, len(filters))
+	for i, f := range filters {
+		if f.kind == m.sourceKind {
+			parts[i] = tabActiveStyle.Render(f.label)
+		} else {
+			parts[i] = tabStyle.Render(f.label)
+		}
+	}
+	row := "  " + strings.Join(parts, sep)
+	vis := lipgloss.Width(row)
+	if vis < w {
+		row += strings.Repeat(" ", w-vis)
+	}
+	return row
+}
+
+func (m model) renderPanelBottom(w int) string {
+	total := m.currentLen()
+	cur := m.cursor + 1
+	if total == 0 {
+		cur = 0
+	}
+	countStr := fmt.Sprintf(" %d of %d ", cur, total)
+	padWidth := max(0, w-len(countStr)-1)
+	return borderStyle.Render(strings.Repeat("─", padWidth)) + countStyle.Render(countStr) + borderStyle.Render("─")
+}
+
+func (m model) renderFooter(w int) string {
+	left := statusStyle.Render(" " + m.status)
+	var right string
+	if m.mode == viewSource {
+		right = dimStyle.Render("enter/i install · x remove · n/d add/del target · D discover · I init · f filter · r rescan · tab · ? · q ")
+	} else {
+		right = dimStyle.Render("n/d add/del project · I init · r rescan · tab · ? · q ")
+	}
+	lv := lipgloss.Width(left)
+	rv := lipgloss.Width(right)
+	gap := max(1, w-lv-rv)
+	return left + strings.Repeat(" ", gap) + right
+}
+
+
+func padToWidth(s string, w int) string {
+	vis := lipgloss.Width(s)
+	if vis >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-vis)
+}
+
+func truncateRunes(s string, maxR int) string {
+	r := []rune(s)
+	if len(r) <= maxR {
+		return s
+	}
+	if maxR <= 0 {
+		return ""
+	}
+	return string(r[:maxR-1]) + "…"
+}
+
 func iconStrip(agent string) string {
 	const cols = 3
 	if icons.Has(agent) {

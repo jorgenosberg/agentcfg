@@ -1,18 +1,12 @@
 // Package icons renders compact inline agent badges for terminal display.
 //
 // Two rendering modes:
+//   - Kitty graphics protocol (Ghostty, Kitty, xterm-kitty): inline PNG logo.
+//     Preload() transmits images once; Badge() emits a placement escape per call.
+//   - Text fallback: a colored letter chip (` C `) for every other terminal.
 //
-//   - Kitty graphics protocol (Ghostty, Kitty, any terminal announcing
-//     "xterm-kitty"): a crisp scaled inline image of the embedded 64×64 PNG
-//     logo. Preload() transmits images once; Badge() returns a tiny placement
-//     escape per call.
-//
-//   - Brand glyph fallback: a single Unicode character in the agent's brand
-//     colour, centred within the badge area. Used on every other terminal.
-//
-// Both modes return labels measuring exactly `cols` cells wide via
-// runewidth/lipgloss, so callers can keep aligned columns in forms and
-// tables.
+// Both modes return labels measuring exactly `cols` cells wide so callers can
+// keep aligned columns.
 package icons
 
 import (
@@ -39,9 +33,6 @@ var (
 		"agents":   1006,
 	}
 
-	// Brand-coloured letter badges used as the fallback for terminals without
-	// Kitty graphics support. Each is rendered as a 3-cell filled rectangle
-	// (` C ` style) so it reads at a glance like a packaging badge.
 	brandBadges = map[string]struct {
 		letter  string
 		r, g, b uint8
@@ -73,9 +64,8 @@ func Has(agent string) bool {
 	return ok
 }
 
-// IsKittySupported reports whether the running terminal can render Kitty
-// graphics protocol escape sequences (Ghostty, Kitty, anything announcing
-// xterm-kitty in $TERM).
+// IsKittySupported reports whether the running terminal supports the Kitty
+// graphics protocol (Ghostty, Kitty, anything announcing xterm-kitty).
 func IsKittySupported() bool {
 	switch os.Getenv("TERM_PROGRAM") {
 	case "ghostty", "kitty":
@@ -84,14 +74,13 @@ func IsKittySupported() bool {
 	return os.Getenv("TERM") == "xterm-kitty"
 }
 
-// Preload transmits the given agents' logos to the terminal once so later
-// Badge() calls only need to reference them by ID. Safe to call repeatedly:
-// each agent is sent at most once per process. No-op on terminals without
-// Kitty graphics support.
+// Preload transmits agent logos to the terminal once so Badge() calls only
+// need to reference them by ID. Safe to call repeatedly; each agent is sent
+// at most once per process. No-op on terminals without Kitty support.
 //
-// Call this before starting an interactive form or program that draws
-// badges. Kitty image cache persists across alt-screen transitions, so it is
-// fine to preload while still in the normal screen.
+// Call before starting an interactive program that draws badges. Kitty image
+// cache persists across alt-screen transitions, so preloading in the normal
+// screen is fine.
 func Preload(agents []string) {
 	if !IsKittySupported() {
 		return
@@ -115,13 +104,13 @@ func Preload(agents []string) {
 	}
 }
 
-// Badge returns a single-line, cols-wide identifier for agent. When Preload
-// has been called for agent and the terminal supports Kitty graphics, the
-// badge embeds a crisp 2-cell-wide square inline image of the logo plus
-// padding to reach cols. Otherwise it returns a brand-coloured 3-cell filled
-// "letter chip" (e.g. ` C ` in orange) padded to cols.
+// Badge returns a cols-wide identifier for agent. Uses an inline Kitty image
+// when Preload has been called and the terminal supports it; otherwise falls
+// back to a colored letter chip (same as TextBadge).
 //
-// cols must be at least 2; values below are clamped up.
+// Kitty placements accumulate across re-renders — only use Badge where the
+// image position is stable between frames. Use TextBadge for overlays and
+// scrollable widgets.
 func Badge(agent string, cols int) string {
 	if cols < 2 {
 		cols = 2
@@ -131,29 +120,29 @@ func Badge(agent string, cols int) string {
 	preloadedMu.Unlock()
 	if pre {
 		if id, ok := kittyIDs[agent]; ok {
-			// a=p   place a previously transmitted image
-			// c=2,r=1 occupy a 2×1 cell rectangle. Terminal cells are
-			//        typically 1:2 (W:H), so 2 cells wide × 1 cell tall is
-			//        ~square — matches the 64×64 source aspect without the
-			//        vertical overflow seen when forcing wider c values.
-			// C=1   do not move cursor; the padding spaces below fill the
-			//        cell area and let lipgloss/runewidth measure width.
-			// q=2   suppress terminal responses
+			// a=p: place preloaded image; c=2,r=1: 2×1 cell area (~square for
+			// 64×64 source); C=1: don't move cursor; trailing spaces advance it.
 			return fmt.Sprintf("\x1b_Ga=p,i=%d,c=2,r=1,C=1,q=2\x1b\\%s",
 				id, strings.Repeat(" ", cols))
 		}
+	}
+	return TextBadge(agent, cols)
+}
+
+// TextBadge returns a cols-wide colored letter chip regardless of terminal
+// capabilities. Use in overlays, scrollable lists, and huh forms where Kitty
+// placements can't be cleaned up between re-renders.
+func TextBadge(agent string, cols int) string {
+	if cols < 2 {
+		cols = 2
 	}
 	bb, ok := brandBadges[agent]
 	if !ok {
 		return strings.Repeat(" ", cols)
 	}
-	// Filled 3-cell chip ` X `: brand colour background, bold white letter.
 	chip := fmt.Sprintf("\x1b[48;2;%d;%d;%dm\x1b[38;2;255;255;255m\x1b[1m %s \x1b[0m",
 		bb.r, bb.g, bb.b, bb.letter)
-	pad := cols - 3
-	if pad < 0 {
-		pad = 0
-	}
+	pad := max(0, cols-3)
 	return chip + strings.Repeat(" ", pad)
 }
 
@@ -161,19 +150,13 @@ func transmitKitty(pngData []byte, id uint32) {
 	encoded := base64.StdEncoding.EncodeToString(pngData)
 	const maxChunk = 4096
 	for i := 0; i < len(encoded); i += maxChunk {
-		end := i + maxChunk
-		if end > len(encoded) {
-			end = len(encoded)
-		}
+		end := min(i+maxChunk, len(encoded))
 		chunk := encoded[i:end]
 		more := "0"
 		if end < len(encoded) {
 			more = "1"
 		}
 		if i == 0 {
-			// a=t   transmit only, do not display
-			// f=100 source is PNG
-			// i=ID, q=2 suppress responses, m=more chunks
 			fmt.Fprintf(os.Stdout, "\x1b_Ga=t,f=100,i=%d,q=2,m=%s;%s\x1b\\",
 				id, more, chunk)
 		} else {

@@ -20,7 +20,7 @@ func main() {
 	if err != nil {
 		die(err)
 	}
-	if err := tui.Run(cfg); err != nil {
+	if err := tui.Run(path, cfg); err != nil {
 		die(err)
 	}
 }
