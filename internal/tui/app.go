@@ -487,9 +487,9 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 		tabs = tabStyle.Render("[1] Source") + borderStyle.Render(" · ") + tabActiveStyle.Render("[2] Projects")
 	}
 	tabsVis := lipgloss.Width(tabs)
-	// "┌─ " = 3 visible; "─"*padW + " ┐" = padW+2 visible; total = leftIW+2
+	// "┌─ " = 3 visible; "─"*padW + "─┐" = padW+2 visible; total = leftIW+2
 	padW := max(0, leftIW-tabsVis-3)
-	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+" ┐")
+	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+"─┐")
 
 	var filterContent string
 	if m.mode == viewSource {
@@ -510,7 +510,7 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 		filterContent = "  " + strings.Join(parts, dimStyle.Render(" · "))
 	}
 	filterRow := aR("│") + padToWidth(filterContent, leftIW) + aR("│")
-	sepRow := aR("├") + aR(strings.Repeat("─", leftIW)) + aR("┤")
+	sepRow := aR("│") + aR(strings.Repeat("─", leftIW)) + aR("│")
 
 	var headerContent string
 	if m.mode == viewSource {
