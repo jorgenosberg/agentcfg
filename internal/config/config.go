@@ -48,6 +48,17 @@ type Target struct {
 	Path     string            `json:"path"`
 	Strategy string            `json:"strategy,omitempty"` // overrides Config.DefaultStrategy
 	Subdirs  map[string]string `json:"subdirs,omitempty"`  // per-kind subdir overrides
+	Exclude  []string          `json:"exclude,omitempty"`  // "kind/name" pairs to skip, e.g. "context/GEMINI.md"
+}
+
+// Excludes reports whether it should be skipped for this target.
+func (t Target) Excludes(it source.Item) bool {
+	for _, e := range t.Exclude {
+		if e == it.Kind+"/"+it.Name || e == it.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolveStrategy returns Target.Strategy if set, else fallback. Callers

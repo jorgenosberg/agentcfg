@@ -37,6 +37,9 @@ func Inspect(cfg config.Config, items []source.Item) []Entry {
 	for _, t := range cfg.Targets {
 		strategy := t.ResolveStrategy(cfg.DefaultStrategy)
 		for _, it := range items {
+			if t.Excludes(it) {
+				continue
+			}
 			dest := destPath(t, it)
 			out = append(out, Entry{
 				Target: t,
