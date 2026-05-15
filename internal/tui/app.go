@@ -779,17 +779,87 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 
 func (m model) buildRightPanel(lh, rightIW int) []string {
 	iR := inactiveBorderStyle.Render
+	total := lh + 3 // expected line count
+
+	if m.mode == viewSource && m.sourceGrouped {
+		// Build target status box on top, preview box below.
+		nT := len(m.cfg.Targets)
+
+		// Target content lines.
+		grouped := m.groupedItems()
+		var byTarget map[string]sync.Entry
+		if m.cursor < len(grouped) {
+			g := grouped[m.cursor]
+			byTarget = make(map[string]sync.Entry, len(g.Entries))
+			for _, e := range g.Entries {
+				byTarget[e.Target.Name] = e
+			}
+		}
+		targetContent := make([]string, nT)
+		for i, t := range m.cfg.Targets {
+			if byTarget != nil {
+				if e, ok := byTarget[t.Name]; ok {
+					targetContent[i] = fmt.Sprintf(" %-10s  %s", t.Name, statusDot(e.Status))
+				} else {
+					targetContent[i] = fmt.Sprintf(" %-10s  %s", t.Name, dimStyle.Render("-"))
+				}
+			}
+		}
+
+		// Targets box height = nT content rows + 2 borders.
+		targetsBoxH := nT + 2
+		// Preview box gets whatever is left; minimum 4 (2 borders + 2 content).
+		previewBoxH := total - targetsBoxH
+		showPreview := previewBoxH >= 4
+		previewContentH := previewBoxH - 2
+		if !showPreview {
+			previewContentH = 0
+		}
+
+		makeBorderTop := func(label string) string {
+			padW := max(0, rightIW-lipgloss.Width(label))
+			return iR("┌") + iR(label+strings.Repeat("─", padW)) + iR("┐")
+		}
+		borderBottom := iR("└") + iR(strings.Repeat("─", rightIW)) + iR("┘")
+
+		lines := make([]string, 0, total)
+		lines = append(lines, makeBorderTop("─ Targets "))
+		for _, l := range targetContent {
+			lines = append(lines, iR("│")+padToWidth(l, rightIW)+iR("│"))
+		}
+		lines = append(lines, borderBottom)
+
+		if showPreview {
+			var previewLines []string
+			if previewContentH > 0 {
+				path, isDir, ok := m.currentPreviewPath()
+				if ok {
+					previewLines = readPreview(path, isDir, previewContentH, rightIW)
+				}
+			}
+			for len(previewLines) < previewContentH {
+				previewLines = append(previewLines, "")
+			}
+			lines = append(lines, makeBorderTop("─ Preview "))
+			for _, l := range previewLines {
+				lines = append(lines, iR("│")+padToWidth(l, rightIW)+iR("│"))
+			}
+			lines = append(lines, borderBottom)
+		}
+
+		for len(lines) < total {
+			lines = append(lines, "")
+		}
+		return lines
+	}
 
 	label := "─ Preview "
-	labelW := lipgloss.Width(label)
-	padW := max(0, rightIW-labelW)
+	padW := max(0, rightIW-lipgloss.Width(label))
 	topBorder := iR("┌") + iR(label+strings.Repeat("─", padW)) + iR("┐")
-
 	previewLines := m.buildPreviewLines(lh+1, rightIW)
-
 	bottomBorder := iR("└") + iR(strings.Repeat("─", rightIW)) + iR("┘")
 
-	lines := make([]string, 0, lh+3)
+	lines := make([]string, 0, total)
 	lines = append(lines, topBorder)
 	for _, row := range previewLines {
 		lines = append(lines, iR("│")+padToWidth(row, rightIW)+iR("│"))
@@ -944,52 +1014,6 @@ func (m model) buildProjectsRows(lh, leftIW int) []string {
 }
 
 func (m model) buildPreviewLines(lh, w int) []string {
-	if m.mode == viewSource && m.sourceGrouped {
-		grouped := m.groupedItems()
-		if m.cursor >= len(grouped) {
-			return make([]string, lh)
-		}
-		g := grouped[m.cursor]
-		byTarget := make(map[string]sync.Entry, len(g.Entries))
-		for _, e := range g.Entries {
-			byTarget[e.Target.Name] = e
-		}
-
-		// Build target breakdown header
-		header := make([]string, 0, len(m.cfg.Targets)+1)
-		for _, t := range m.cfg.Targets {
-			if e, ok := byTarget[t.Name]; ok {
-				header = append(header, fmt.Sprintf(" %-8s  %s", t.Name, statusDot(e.Status)))
-			} else {
-				header = append(header, fmt.Sprintf(" %-8s  %s", t.Name, dimStyle.Render("-")))
-			}
-		}
-		header = append(header, "") // blank separator
-
-		remaining := lh - len(header)
-		var raw []string
-		if remaining > 0 {
-			path, isDir, ok := m.currentPreviewPath()
-			if ok {
-				raw = readPreview(path, isDir, remaining, w)
-			}
-		}
-
-		lines := make([]string, lh)
-		for i, h := range header {
-			if i < lh {
-				lines[i] = h
-			}
-		}
-		base := len(header)
-		for i, r := range raw {
-			if base+i < lh {
-				lines[base+i] = r
-			}
-		}
-		return lines
-	}
-
 	path, isDir, ok := m.currentPreviewPath()
 	var raw []string
 	if ok {
