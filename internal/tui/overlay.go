@@ -39,7 +39,7 @@ func renderOverlayBox(w, h int, content, title string, boxW int) string {
 		BorderForeground(lipgloss.Color("63")).
 		Padding(1, 2).
 		Width(boxW).
-		Render(titleStyle.Render(title) + "\n\n" + content)
+		Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63")).Render(title) + "\n\n" + content)
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
 }
 
