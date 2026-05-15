@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,10 +31,6 @@ func Run(cfgPath string, cfg config.Config) error {
 		return err
 	}
 	projectItems := scanAllProjects(cfg)
-
-	// Preload agent logo images while still in the normal screen so the
-	// terminal has them cached before the alt screen takes over.
-	icons.Preload(targetNamesFromConfig(cfg))
 
 	m := newModel(cfgPath, cfg, items, projectItems)
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
@@ -83,12 +80,12 @@ func (m model) Init() tea.Cmd { return nil }
 
 // innerWidths returns the inner content widths for the left and right panels
 // (excluding border characters) and whether the right panel is shown.
-// Total: 3 chars of borders (│ left │ divider │ right) + leftIW + rightIW = m.width.
+// Total: 4 chars of borders (│left│ │right│) + leftIW + rightIW = m.width.
 func (m model) innerWidths() (leftIW, rightIW int, hasRight bool) {
 	if m.width == 0 {
 		return 78, 0, false
 	}
-	innerW := m.width - 3
+	innerW := m.width - 4
 	leftIW = max(48, innerW*2/5)
 	rightIW = innerW - leftIW
 	if rightIW < 20 {
@@ -158,7 +155,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.items = items
 		m.entries = sync.Inspect(cfg, items)
 		m.projectItems = scanAllProjects(cfg)
-		icons.Preload(targetNamesFromConfig(cfg))
 		if n := m.currentLen(); m.cursor >= n {
 			m.cursor = max(0, n-1)
 		}
@@ -241,7 +237,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
-		case "f":
+		case "f", "right":
 			if m.mode == viewSource {
 				switch m.sourceKind {
 				case "":
@@ -251,6 +247,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case source.KindHook:
 					m.sourceKind = source.KindContext
 				default:
+					m.sourceKind = ""
+				}
+				m.cursor, m.offset = 0, 0
+			}
+		case "left":
+			if m.mode == viewSource {
+				switch m.sourceKind {
+				case "":
+					m.sourceKind = source.KindContext
+				case source.KindContext:
+					m.sourceKind = source.KindHook
+				case source.KindHook:
+					m.sourceKind = source.KindSkill
+				case source.KindSkill:
 					m.sourceKind = ""
 				}
 				m.cursor, m.offset = 0, 0
@@ -437,45 +447,25 @@ func (m model) View() string {
 	if m.overlay != nil {
 		return m.overlay.View(m.width, m.height)
 	}
-
 	leftIW, rightIW, hasRight := m.innerWidths()
 	lh := m.listHeight()
-
+	leftLines := m.buildLeftPanel(lh, leftIW)
 	var b strings.Builder
-
-	b.WriteString(m.renderTopBorder(leftIW, rightIW, hasRight))
-	b.WriteByte('\n')
-	b.WriteString(m.renderFilterBoxRow(leftIW, rightIW, hasRight))
-	b.WriteByte('\n')
-
-	leftRows := m.buildContentRows(lh, leftIW)
-	var rightRows []string
 	if hasRight {
-		rightRows = m.buildPreviewLines(lh, rightIW)
-	}
-
-	aB := activeBorderStyle.Render("│")
-	iB := inactiveBorderStyle.Render("│")
-
-	for i := range lh {
-		left := ""
-		if i < len(leftRows) {
-			left = leftRows[i]
-		}
-		if hasRight {
-			right := ""
-			if i < len(rightRows) {
-				right = rightRows[i]
+		rightLines := m.buildRightPanel(lh, rightIW)
+		for i, l := range leftLines {
+			b.WriteString(l)
+			if i < len(rightLines) {
+				b.WriteString(rightLines[i])
 			}
-			b.WriteString(aB + padToWidth(left, leftIW) + iB + padToWidth(right, rightIW) + iB)
-		} else {
-			b.WriteString(aB + padToWidth(left, leftIW) + aB)
+			b.WriteByte('\n')
 		}
-		b.WriteByte('\n')
+	} else {
+		for _, l := range leftLines {
+			b.WriteString(l)
+			b.WriteByte('\n')
+		}
 	}
-
-	b.WriteString(m.renderBottomBorder(leftIW, rightIW, hasRight))
-	b.WriteByte('\n')
 	b.WriteString(m.renderFooter(m.width))
 	return b.String()
 }
@@ -487,7 +477,9 @@ func (m model) buildContentRows(lh, leftIW int) []string {
 	return m.buildProjectsRows(lh, leftIW)
 }
 
-func (m model) renderTopBorder(leftIW, rightIW int, hasRight bool) string {
+func (m model) buildLeftPanel(lh, leftIW int) []string {
+	aR := activeBorderStyle.Render
+
 	var tabs string
 	if m.mode == viewSource {
 		tabs = tabActiveStyle.Render("[1] Source") + borderStyle.Render(" · ") + tabStyle.Render("[2] Projects")
@@ -495,22 +487,11 @@ func (m model) renderTopBorder(leftIW, rightIW int, hasRight bool) string {
 		tabs = tabStyle.Render("[1] Source") + borderStyle.Render(" · ") + tabActiveStyle.Render("[2] Projects")
 	}
 	tabsVis := lipgloss.Width(tabs)
-	const prefix = "─ "
-	const suffix = " "
-	padW := max(0, leftIW-len(prefix)-tabsVis-len(suffix))
-	leftSec := activeBorderStyle.Render(prefix) + tabs + activeBorderStyle.Render(strings.Repeat("─", padW)+suffix)
+	// "┌─ " = 3 visible; "─"*padW + " ┐" = padW+2 visible; total = leftIW+2
+	padW := max(0, leftIW-tabsVis-3)
+	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+" ┐")
 
-	if !hasRight {
-		return activeBorderStyle.Render("┌") + leftSec + activeBorderStyle.Render("┐")
-	}
-	rightLabel := "─ Preview "
-	rightPadW := max(0, rightIW-len(rightLabel))
-	rightSec := inactiveBorderStyle.Render(rightLabel + strings.Repeat("─", rightPadW))
-	return activeBorderStyle.Render("┌") + leftSec + inactiveBorderStyle.Render("┬") + rightSec + inactiveBorderStyle.Render("┐")
-}
-
-func (m model) renderFilterBoxRow(leftIW, rightIW int, hasRight bool) string {
-	var leftContent string
+	var filterContent string
 	if m.mode == viewSource {
 		filters := []struct{ kind, label string }{
 			{"", "all"},
@@ -518,43 +499,70 @@ func (m model) renderFilterBoxRow(leftIW, rightIW int, hasRight bool) string {
 			{source.KindHook, "hooks"},
 			{source.KindContext, "context"},
 		}
-		sep := dimStyle.Render(" · ")
 		parts := make([]string, len(filters))
 		for i, f := range filters {
 			if f.kind == m.sourceKind {
-				parts[i] = tabActiveStyle.Render(f.label)
+				parts[i] = tabActiveStyle.Render("[" + f.label + "]")
 			} else {
 				parts[i] = tabStyle.Render(f.label)
 			}
 		}
-		leftContent = " " + strings.Join(parts, sep)
+		filterContent = "  " + strings.Join(parts, dimStyle.Render(" · "))
 	}
-	aB := activeBorderStyle.Render("│")
-	if !hasRight {
-		return aB + padToWidth(leftContent, leftIW) + aB
-	}
-	iB := inactiveBorderStyle.Render("│")
-	return aB + padToWidth(leftContent, leftIW) + iB + padToWidth("", rightIW) + iB
-}
+	filterRow := aR("│") + padToWidth(filterContent, leftIW) + aR("│")
+	sepRow := aR("├") + aR(strings.Repeat("─", leftIW)) + aR("┤")
 
-func (m model) renderBottomBorder(leftIW, rightIW int, hasRight bool) string {
+	var headerContent string
+	if m.mode == viewSource {
+		headerContent = "  " + fmt.Sprintf("%-8s  %-7s  %-24s  %s", "TARGET", "TYPE", "NAME", "STATUS")
+	} else {
+		headerContent = "  " + fmt.Sprintf("%-16s%-10s  %-7s  %-24s  %s", "PROJECT", "AGENT", "TYPE", "NAME", "PATH")
+	}
+	headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
+
+	contentRows := m.buildContentRows(max(0, lh-2), leftIW)
+
 	total := m.currentLen()
 	cur := m.cursor + 1
 	if total == 0 {
 		cur = 0
 	}
 	countStr := fmt.Sprintf(" %d of %d ", cur, total)
-	padW := max(0, leftIW-len(countStr))
-	leftSec := activeBorderStyle.Render(strings.Repeat("─", padW)) + countStyle.Render(countStr)
+	padW2 := max(0, leftIW-lipgloss.Width(countStr))
+	bottomBorder := aR("└") + aR(strings.Repeat("─", padW2)) + countStyle.Render(countStr) + aR("┘")
 
-	if !hasRight {
-		return activeBorderStyle.Render("└") + leftSec + activeBorderStyle.Render("┘")
+	lines := make([]string, 0, lh+4)
+	lines = append(lines, topBorder)
+	lines = append(lines, filterRow)
+	lines = append(lines, sepRow)
+	lines = append(lines, headerRow)
+	for _, row := range contentRows {
+		lines = append(lines, aR("│")+padToWidth(row, leftIW)+aR("│"))
 	}
-	rightSec := inactiveBorderStyle.Render(strings.Repeat("─", rightIW))
-	return activeBorderStyle.Render("└") + leftSec + inactiveBorderStyle.Render("┴") + rightSec + inactiveBorderStyle.Render("┘")
+	lines = append(lines, bottomBorder)
+	return lines
 }
 
-const iconWidth = 4 // iconStrip always returns 4 visible chars
+func (m model) buildRightPanel(lh, rightIW int) []string {
+	iR := inactiveBorderStyle.Render
+
+	label := "─ Preview "
+	labelW := lipgloss.Width(label)
+	padW := max(0, rightIW-labelW)
+	topBorder := iR("┌") + iR(label+strings.Repeat("─", padW)) + iR("┐")
+
+	previewLines := m.buildPreviewLines(lh+1, rightIW)
+
+	bottomBorder := iR("└") + iR(strings.Repeat("─", rightIW)) + iR("┘")
+
+	lines := make([]string, 0, lh+3)
+	lines = append(lines, topBorder)
+	for _, row := range previewLines {
+		lines = append(lines, iR("│")+padToWidth(row, rightIW)+iR("│"))
+	}
+	lines = append(lines, bottomBorder)
+	return lines
+}
 
 func (m model) buildSourceRows(lh, leftIW int) []string {
 	entries := m.filteredEntries()
@@ -578,14 +586,13 @@ func (m model) buildSourceRows(lh, leftIW int) []string {
 	end := min(m.offset+lh, len(entries))
 	for i := m.offset; i < end; i++ {
 		e := entries[i]
-		icon := iconStrip(e.Target.Name)
-		statusStr := renderStatus(e.Status)
-		line := fmt.Sprintf("%-8s  %-7s  %-24s  %s", e.Target.Name, e.Item.Kind, e.Item.Name, statusStr)
+		styledName := agentNameStyled(e.Target.Name, 8)
+		rest := fmt.Sprintf("  %-7s  %-24s  %s", e.Item.Kind, e.Item.Name, renderStatus(e.Status))
 		if i == m.cursor {
-			content := cursorStyle.Render("▌ ") + line
-			rows = append(rows, icon+selectedRowStyle.Render(padToWidth(content, leftIW-iconWidth)))
+			content := cursorStyle.Render("▌ ") + styledName + rest
+			rows = append(rows, selectedRowStyle.Render(padToWidth(content, leftIW)))
 		} else {
-			rows = append(rows, icon+"  "+line)
+			rows = append(rows, "  "+styledName+rest)
 		}
 	}
 	for len(rows) < lh {
@@ -612,13 +619,14 @@ func (m model) buildProjectsRows(lh, leftIW int) []string {
 	end := min(m.offset+lh, len(m.projectItems))
 	for i := m.offset; i < end; i++ {
 		it := m.projectItems[i]
-		icon := iconStrip(it.Agent)
-		line := fmt.Sprintf("%-14s  %-10s  %-7s  %-24s  %s", it.Project, it.Agent, it.Kind, it.Name, it.RelPath)
+		projPart := fmt.Sprintf("%-14s  ", it.Project)
+		styledAgent := agentNameStyled(it.Agent, 10)
+		rest := fmt.Sprintf("  %-7s  %-24s  %s", it.Kind, it.Name, it.RelPath)
 		if i == m.cursor {
-			content := cursorStyle.Render("▌ ") + line
-			rows = append(rows, icon+selectedRowStyle.Render(padToWidth(content, leftIW-iconWidth)))
+			content := cursorStyle.Render("▌ ") + projPart + styledAgent + rest
+			rows = append(rows, selectedRowStyle.Render(padToWidth(content, leftIW)))
 		} else {
-			rows = append(rows, icon+"  "+line)
+			rows = append(rows, "  "+projPart+styledAgent+rest)
 		}
 	}
 	for len(rows) < lh {
@@ -649,13 +657,19 @@ func (m model) currentPreviewPath() (path string, isDir bool, ok bool) {
 			return "", false, false
 		}
 		e := entries[m.cursor]
-		return e.Item.Path, e.Item.Kind == source.KindSkill, true
+		if e.Item.Kind == source.KindSkill {
+			return filepath.Join(e.Item.Path, "SKILL.md"), false, true
+		}
+		return e.Item.Path, false, true
 	}
 	if m.cursor >= len(m.projectItems) {
 		return "", false, false
 	}
 	it := m.projectItems[m.cursor]
-	return it.Path, it.Kind == source.KindSkill, true
+	if it.Kind == source.KindSkill {
+		return filepath.Join(it.Path, "SKILL.md"), false, true
+	}
+	return it.Path, false, true
 }
 
 func readPreview(path string, isDir bool, maxLines, maxWidth int) []string {
@@ -713,7 +727,7 @@ func (m model) renderFooter(w int) string {
 	}
 	var right string
 	if m.mode == viewSource {
-		right = dimStyle.Render("i install  x remove  S sync  n/d target  f filter  r rescan  ? help  q quit ")
+		right = dimStyle.Render("i install  x remove  S sync  n/d target  ←/→ filter  r rescan  ? help  q quit ")
 	} else {
 		right = dimStyle.Render("n/d project  r rescan  ? help  q quit ")
 	}
@@ -723,6 +737,15 @@ func (m model) renderFooter(w int) string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
+
+func agentNameStyled(agent string, fieldW int) string {
+	padded := fmt.Sprintf("%-*s", fieldW, agent)
+	hex := icons.BrandColor(agent)
+	if hex == "" {
+		return padded
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Bold(true).Render(padded)
+}
 
 func padToWidth(s string, w int) string {
 	vis := lipgloss.Width(s)
@@ -743,10 +766,3 @@ func truncateRunes(s string, maxR int) string {
 	return string(r[:maxR-1]) + "…"
 }
 
-func iconStrip(agent string) string {
-	const cols = 3
-	if icons.Has(agent) {
-		return icons.Badge(agent, cols) + " "
-	}
-	return strings.Repeat(" ", cols+1)
-}

@@ -65,6 +65,15 @@ func Has(agent string) bool {
 	return ok
 }
 
+// BrandColor returns the hex brand background color for agent (e.g. "#DA7756"), or "" if unknown.
+func BrandColor(agent string) string {
+	bb, ok := brandBadges[agent]
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("#%02X%02X%02X", bb.r, bb.g, bb.b)
+}
+
 // IsKittySupported reports whether the running terminal supports the Kitty
 // graphics protocol (Ghostty, Kitty, anything announcing xterm-kitty).
 func IsKittySupported() bool {
@@ -106,8 +115,12 @@ func Preload(agents []string) {
 }
 
 // Badge returns a cols-wide identifier for agent. Uses an inline Kitty image
-// when Preload has been called and the terminal supports it; otherwise falls
-// back to a colored letter chip (same as TextBadge).
+// when the terminal supports it; otherwise falls back to a colored letter chip
+// (same as TextBadge).
+//
+// On first call per agent per process, the PNG is transmitted inline using
+// a=T (transmit+display), which works correctly inside alt-screen buffers.
+// Subsequent calls use a=p (place by stored ID) for efficiency.
 //
 // Kitty placements accumulate across re-renders — only use Badge where the
 // image position is stable between frames. Use TextBadge for overlays and
@@ -116,18 +129,59 @@ func Badge(agent string, cols int) string {
 	if cols < 2 {
 		cols = 2
 	}
+	if !IsKittySupported() {
+		return TextBadge(agent, cols)
+	}
+	id, hasID := kittyIDs[agent]
+	raw, hasRaw := rawLogos[agent]
+	if !hasID || !hasRaw {
+		return TextBadge(agent, cols)
+	}
+
 	preloadedMu.Lock()
 	pre := preloaded[agent]
+	if !pre {
+		preloaded[agent] = true
+	}
 	preloadedMu.Unlock()
-	if pre {
-		if id, ok := kittyIDs[agent]; ok {
-			// a=p: place preloaded image; c=2,r=1: 2×1 cell area (~square for
-			// 64×64 source); C=1: don't move cursor; trailing spaces advance it.
-			return fmt.Sprintf("\x1b_Ga=p,i=%d,c=2,r=1,C=1,q=2\x1b\\%s",
-				id, strings.Repeat(" ", cols))
+
+	if !pre {
+		// First call: transmit PNG + place inline (a=T) so the image lands in
+		// whichever screen buffer (main or alt) is currently active.
+		return kittyInlineTransmit(raw, id, cols)
+	}
+	// Already transmitted this session: just reference by ID.
+	return fmt.Sprintf("\x1b_Ga=p,i=%d,c=2,r=1,C=1,q=2\x1b\\%s",
+		id, strings.Repeat(" ", cols))
+}
+
+// kittyInlineTransmit builds a Kitty transmit (a=t) + place (a=p) sequence
+// as a string. Used by Badge on first call so the image is stored and placed
+// in the correct screen buffer without requiring a prior Preload call.
+// Uses a=t + a=p separately (not a=T) for maximum terminal compatibility.
+func kittyInlineTransmit(pngData []byte, id uint32, cols int) string {
+	encoded := base64.StdEncoding.EncodeToString(pngData)
+	const maxChunk = 4096
+	var b strings.Builder
+	// Transmit the image data (a=t, store only).
+	for i := 0; i < len(encoded); i += maxChunk {
+		end := min(i+maxChunk, len(encoded))
+		chunk := encoded[i:end]
+		more := "0"
+		if end < len(encoded) {
+			more = "1"
+		}
+		if i == 0 {
+			fmt.Fprintf(&b, "\x1b_Ga=t,f=100,i=%d,q=2,m=%s;%s\x1b\\",
+				id, more, chunk)
+		} else {
+			fmt.Fprintf(&b, "\x1b_Gm=%s,q=2;%s\x1b\\", more, chunk)
 		}
 	}
-	return TextBadge(agent, cols)
+	// Place the stored image by ID (a=p).
+	fmt.Fprintf(&b, "\x1b_Ga=p,i=%d,c=2,r=1,C=1,q=2\x1b\\", id)
+	b.WriteString(strings.Repeat(" ", cols))
+	return b.String()
 }
 
 // TextBadge returns a cols-wide colored letter chip regardless of terminal

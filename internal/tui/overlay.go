@@ -176,7 +176,7 @@ func (o *helpOverlay) View(w, h int) string {
 		{"enter / i", "install selected item"},
 		{"x", "uninstall selected item"},
 		{"S", "sync all (install absent + update drifted)"},
-		{"f", "cycle filter (all / skills / hooks / context)"},
+		{"f / ← / →", "cycle filter (all / skills / hooks / context)"},
 		{"n", "add target"},
 		{"d", "remove target"},
 	}
@@ -481,11 +481,6 @@ func newDiscoverOverlay(cfgPath string, cfg config.Config) *discoverOverlay {
 	if len(candidates) == 0 {
 		return &discoverOverlay{cfgPath: cfgPath, cfg: cfg, empty: true}
 	}
-	names := make([]string, len(candidates))
-	for i, t := range candidates {
-		names[i] = t.Name
-	}
-	icons.Preload(names)
 	items := make([]msItem, len(candidates))
 	for i, t := range candidates {
 		badge := icons.TextBadge(t.Name, 3)
@@ -609,13 +604,6 @@ func newInitWizardOverlay(cfgPath string) (*initWizardOverlay, tea.Cmd) {
 func (o *initWizardOverlay) advanceToTargets() {
 	found := catalog.Discover()
 	o.targetCandidates = found
-	names := make([]string, len(found))
-	for i, t := range found {
-		names[i] = t.Name
-	}
-	if len(names) > 0 {
-		icons.Preload(names)
-	}
 	items := make([]msItem, len(found))
 	for i, t := range found {
 		badge := icons.TextBadge(t.Name, 3)
