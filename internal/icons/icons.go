@@ -37,12 +37,12 @@ var (
 		letter  string
 		r, g, b uint8
 	}{
-		"claude":   {"C", 0xD9, 0x77, 0x57}, // Anthropic peach
-		"codex":    {"X", 0x6E, 0x9B, 0xFF}, // pale blue
-		"copilot":  {"P", 0x8B, 0x5C, 0xF6}, // Copilot purple
-		"gemini":   {"G", 0x4F, 0x88, 0xFF}, // Google blue
-		"opencode": {"O", 0x9B, 0x5C, 0xFF}, // violet
-		"agents":   {"A", 0x10, 0xA3, 0x7C}, // OpenAI teal
+		"claude":   {"C", 0xDA, 0x77, 0x56}, // #DA7756 Anthropic terracotta
+		"codex":    {"X", 0x10, 0xA3, 0x7F}, // #10A37F OpenAI teal
+		"copilot":  {"P", 0x85, 0x34, 0xF3}, // #8534F3 GitHub Copilot purple
+		"gemini":   {"G", 0x47, 0x96, 0xE3}, // #4796E3 Gemini blue
+		"opencode": {"O", 0xF5, 0x9E, 0x0B}, // #F59E0B amber (no official brand color)
+		"agents":   {"A", 0x64, 0x74, 0x8B}, // #64748B neutral slate
 	}
 
 	preloaded   = map[string]bool{}
