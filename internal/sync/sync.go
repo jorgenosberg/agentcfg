@@ -5,8 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/lock"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 )
 
@@ -16,6 +18,7 @@ type Status string
 const (
 	StatusLinked  Status = "linked"  // installed as symlink pointing at source
 	StatusCopied  Status = "copied"  // installed as a copy (snapshot)
+	StatusDrifted Status = "drifted" // copy exists but source has changed
 	StatusForeign Status = "foreign" // present but not managed by agentcfg
 	StatusAbsent  Status = "absent"  // not installed
 )
@@ -60,6 +63,11 @@ func Install(t config.Target, strategy string, it source.Item) (Status, error) {
 		return s, nil
 	case StatusForeign:
 		return s, fmt.Errorf("%s exists and is not managed by agentcfg", dest)
+	case StatusDrifted:
+		// remove stale copy before reinstalling
+		if err := os.RemoveAll(dest); err != nil {
+			return "", err
+		}
 	}
 
 	switch strategy {
@@ -116,8 +124,11 @@ func statusOf(dest, src, strategy string) Status {
 		}
 		return StatusForeign
 	}
-	if strategy == config.StrategyCopy && sameContent(dest, src) {
-		return StatusCopied
+	if strategy == config.StrategyCopy {
+		if sameContent(dest, src) {
+			return StatusCopied
+		}
+		return StatusDrifted
 	}
 	return StatusForeign
 }
@@ -156,6 +167,48 @@ func sameContent(a, b string) bool {
 		}
 	}
 	return true
+}
+
+// SyncResult holds the outcome for one (target, item) pair after a Sync run.
+type SyncResult struct {
+	Entry     Entry
+	OldStatus Status
+	Err       error
+}
+
+// Sync installs all absent or drifted items across all targets. When dryRun is
+// true it returns what would happen without making any changes. Successful
+// installs are recorded in lck (caller is responsible for persisting it).
+func Sync(cfg config.Config, items []source.Item, lck lock.Lock, dryRun bool) []SyncResult {
+	entries := Inspect(cfg, items)
+	var out []SyncResult
+	for _, e := range entries {
+		if e.Status != StatusAbsent && e.Status != StatusDrifted {
+			continue
+		}
+		if dryRun {
+			out = append(out, SyncResult{Entry: e, OldStatus: e.Status})
+			continue
+		}
+		strategy := e.Target.ResolveStrategy(cfg.DefaultStrategy)
+		newStatus, err := Install(e.Target, strategy, e.Item)
+		if err != nil {
+			out = append(out, SyncResult{Entry: e, OldStatus: e.Status, Err: err})
+			continue
+		}
+		if lck != nil {
+			if h, hashErr := lock.HashPath(e.Item.Path); hashErr == nil {
+				lck[e.Dest] = lock.Entry{
+					Hash:        h,
+					InstalledAt: time.Now().UTC(),
+				}
+			}
+		}
+		oldStatus := e.Status
+		e.Status = newStatus
+		out = append(out, SyncResult{Entry: e, OldStatus: oldStatus})
+	}
+	return out
 }
 
 // CopyAny copies a file or directory tree from src to dst. Parent dirs of

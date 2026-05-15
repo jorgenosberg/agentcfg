@@ -11,6 +11,7 @@ import (
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/icons"
+	"github.com/jorgenosberg/agentcfg/internal/lock"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 	"github.com/jorgenosberg/agentcfg/internal/version"
@@ -346,6 +347,39 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "S":
+			if m.mode == viewSource {
+				lockPath, err := lock.DefaultPath()
+				if err != nil {
+					m.status = "sync: " + err.Error()
+					break
+				}
+				lck, err := lock.Load(lockPath)
+				if err != nil {
+					m.status = "sync: " + err.Error()
+					break
+				}
+				results := sync.Sync(m.cfg, m.items, lck, false)
+				var installed, updated int
+				for _, r := range results {
+					if r.Err == nil {
+						if r.OldStatus == sync.StatusAbsent {
+							installed++
+						} else {
+							updated++
+						}
+					}
+				}
+				if len(results) > 0 {
+					_ = lock.Save(lockPath, lck)
+				}
+				m.entries = sync.Inspect(m.cfg, m.items)
+				if len(results) == 0 {
+					m.status = "everything up to date"
+				} else {
+					m.status = fmt.Sprintf("sync: %d installed, %d updated", installed, updated)
+				}
+			}
 		}
 	default:
 		// Forward all other messages (e.g. cursor blink ticks) to active overlay.
@@ -368,7 +402,30 @@ var (
 	borderStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	countStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	previewStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
+
+	statusLinkedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))  // green
+	statusCopiedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))  // teal
+	statusDriftedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214")) // amber
+	statusAbsentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // dim
+	statusForeignStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196")) // red
 )
+
+func renderStatus(s sync.Status) string {
+	switch s {
+	case sync.StatusLinked:
+		return statusLinkedStyle.Render(string(s))
+	case sync.StatusCopied:
+		return statusCopiedStyle.Render(string(s))
+	case sync.StatusDrifted:
+		return statusDriftedStyle.Render(string(s))
+	case sync.StatusAbsent:
+		return statusAbsentStyle.Render(string(s))
+	case sync.StatusForeign:
+		return statusForeignStyle.Render(string(s))
+	default:
+		return string(s)
+	}
+}
 
 func (m model) View() string {
 	if m.overlay != nil {
@@ -461,9 +518,10 @@ func (m model) buildSourceRows(lh int) []string {
 	for i := m.offset; i < end; i++ {
 		e := entries[i]
 		icon := iconStrip(e.Target.Name)
-		line := fmt.Sprintf("%-8s  %-7s  %-24s  %s", e.Target.Name, e.Item.Kind, e.Item.Name, e.Status)
+		statusStr := renderStatus(e.Status)
+		line := fmt.Sprintf("%-8s  %-7s  %-24s  %s", e.Target.Name, e.Item.Kind, e.Item.Name, statusStr)
 		if i == m.cursor {
-			rows = append(rows, icon+cursorStyle.Render("▶ "+line))
+			rows = append(rows, icon+cursorStyle.Render("▶ ")+line)
 		} else {
 			rows = append(rows, icon+"  "+line)
 		}

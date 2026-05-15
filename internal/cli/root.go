@@ -5,12 +5,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
+	"github.com/jorgenosberg/agentcfg/internal/backup"
 	"github.com/jorgenosberg/agentcfg/internal/catalog"
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/lock"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 	"github.com/jorgenosberg/agentcfg/internal/version"
@@ -63,6 +66,8 @@ func NewRoot() *cobra.Command {
 		newStatusCmd(resolveCfg),
 		newInstallCmd(resolveCfg),
 		newUninstallCmd(resolveCfg),
+		newSyncCmd(resolveCfg),
+		newBackupCmd(resolveCfg),
 		newInitCmd(&configPath),
 		newTargetCmd(resolveCfg, resolvePath),
 		newDiscoverCmd(resolveCfg, resolvePath),
@@ -750,3 +755,222 @@ func selectTargets(all []config.Target, name string) []config.Target {
 	}
 	return nil
 }
+
+func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
+	var dryRun bool
+	var noBackup bool
+	var targetName string
+	c := &cobra.Command{
+		Use:   "sync",
+		Short: "Install all absent and drifted items across all targets",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			if targetName != "" {
+				targets := selectTargets(cfg.Targets, targetName)
+				if len(targets) == 0 {
+					return fmt.Errorf("no target named %q", targetName)
+				}
+				cfg.Targets = targets
+			}
+			items, err := source.Scan(cfg.Source)
+			if err != nil {
+				return err
+			}
+			lockPath, err := lock.DefaultPath()
+			if err != nil {
+				return err
+			}
+			lck, err := lock.Load(lockPath)
+			if err != nil {
+				return err
+			}
+
+			if !dryRun && !noBackup {
+				backupRoot, err := backup.DefaultRoot()
+				if err != nil {
+					return err
+				}
+				snaps, err := backup.List(backupRoot)
+				if err != nil {
+					return err
+				}
+				if len(snaps) == 0 {
+					backupDir, err := backup.Create(cfg, backupRoot)
+					if err != nil {
+						return fmt.Errorf("auto-backup failed: %w", err)
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "backup created: %s\n", backupDir)
+				}
+			}
+
+			results := sync.Sync(cfg, items, lck, dryRun)
+
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			if dryRun {
+				fmt.Fprintln(tw, "TARGET\tKIND\tITEM\tSTATUS\t(dry-run)")
+			} else {
+				fmt.Fprintln(tw, "TARGET\tKIND\tITEM\tRESULT")
+			}
+			for _, r := range results {
+				if r.Err != nil {
+					fmt.Fprintf(tw, "%s\t%s\t%s\terror: %v\n",
+						r.Entry.Target.Name, r.Entry.Item.Kind, r.Entry.Item.Name, r.Err)
+					continue
+				}
+				if dryRun {
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+						r.Entry.Target.Name, r.Entry.Item.Kind, r.Entry.Item.Name, r.OldStatus)
+				} else {
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+						r.Entry.Target.Name, r.Entry.Item.Kind, r.Entry.Item.Name, r.Entry.Status)
+				}
+			}
+			if err := tw.Flush(); err != nil {
+				return err
+			}
+
+			if !dryRun && len(results) > 0 {
+				if err := lock.Save(lockPath, lck); err != nil {
+					return fmt.Errorf("save lock: %w", err)
+				}
+			}
+			if len(results) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "everything up to date")
+			}
+			return nil
+		},
+	}
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be installed without making changes")
+	c.Flags().BoolVar(&noBackup, "no-backup", false, "skip automatic backup before syncing")
+	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")
+	return c
+}
+
+func newBackupCmd(load func() (config.Config, error)) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "backup",
+		Short: "Manage snapshots of target directories",
+	}
+
+	create := &cobra.Command{
+		Use:   "create",
+		Short: "Snapshot all target directories now",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			root, err := backup.DefaultRoot()
+			if err != nil {
+				return err
+			}
+			dir, err := backup.Create(cfg, root)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), dir)
+			return nil
+		},
+	}
+
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List available snapshots",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, err := backup.DefaultRoot()
+			if err != nil {
+				return err
+			}
+			snaps, err := backup.List(root)
+			if err != nil {
+				return err
+			}
+			if len(snaps) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "no backups found")
+				return nil
+			}
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			fmt.Fprintln(tw, "TIMESTAMP\tTARGETS")
+			for _, s := range snaps {
+				names := make([]string, len(s.Targets))
+				for i, t := range s.Targets {
+					names[i] = t.Name
+				}
+				fmt.Fprintf(tw, "%s\t%s\n", s.Timestamp.Format("2006-01-02 15:04:05 UTC"),
+					strings.Join(names, ", "))
+			}
+			return tw.Flush()
+		},
+	}
+
+	restore := &cobra.Command{
+		Use:   "restore",
+		Short: "Restore a snapshot back to original target paths",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			root, err := backup.DefaultRoot()
+			if err != nil {
+				return err
+			}
+			snaps, err := backup.List(root)
+			if err != nil {
+				return err
+			}
+			if len(snaps) == 0 {
+				return fmt.Errorf("no backups found in %s", root)
+			}
+
+			// list options and let user pick by index
+			fmt.Fprintln(cmd.OutOrStdout(), "Available snapshots:")
+			for i, s := range snaps {
+				names := make([]string, len(s.Targets))
+				for j, t := range s.Targets {
+					names[j] = t.Name
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "  [%d] %s  (%s)\n",
+					i+1, s.Timestamp.Format("2006-01-02 15:04:05 UTC"), strings.Join(names, ", "))
+			}
+			fmt.Fprint(cmd.OutOrStdout(), "Select snapshot number: ")
+			var idx int
+			if _, err := fmt.Fscan(cmd.InOrStdin(), &idx); err != nil || idx < 1 || idx > len(snaps) {
+				return fmt.Errorf("invalid selection")
+			}
+			chosen := snaps[idx-1]
+
+			// find the snapshot dir by timestamp
+			entries, err := os.ReadDir(root)
+			if err != nil {
+				return err
+			}
+			var snapshotDir string
+			target := chosen.Timestamp.UTC().Format("20060102-150405")
+			for _, e := range entries {
+				if e.Name() == target {
+					snapshotDir = filepath.Join(root, e.Name())
+					break
+				}
+			}
+			if snapshotDir == "" {
+				return fmt.Errorf("snapshot directory not found")
+			}
+
+			if err := backup.Restore(snapshotDir, cfg); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "restored from %s\n", snapshotDir)
+			return nil
+		},
+	}
+
+	c.AddCommand(create, list, restore)
+	// default subcommand: create
+	c.RunE = create.RunE
+	return c
+}
+
