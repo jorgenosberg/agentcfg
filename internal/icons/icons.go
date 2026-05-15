@@ -34,15 +34,16 @@ var (
 	}
 
 	brandBadges = map[string]struct {
-		letter  string
-		r, g, b uint8
+		letter              string
+		r, g, b             uint8
+		tr, tg, tb          uint8 // text color (defaults to white 255,255,255 if all zero)
 	}{
-		"claude":   {"C", 0xDA, 0x77, 0x56}, // #DA7756 Anthropic terracotta
-		"codex":    {"X", 0x10, 0xA3, 0x7F}, // #10A37F OpenAI teal
-		"copilot":  {"P", 0x85, 0x34, 0xF3}, // #8534F3 GitHub Copilot purple
-		"gemini":   {"G", 0x47, 0x96, 0xE3}, // #4796E3 Gemini blue
-		"opencode": {"O", 0xF5, 0x9E, 0x0B}, // #F59E0B amber (no official brand color)
-		"agents":   {"A", 0x64, 0x74, 0x8B}, // #64748B neutral slate
+		"claude":   {"C", 0xDA, 0x77, 0x56, 0, 0, 0},      // #DA7756 Anthropic terracotta
+		"codex":    {"X", 0x10, 0xA3, 0x7F, 0, 0, 0},      // #10A37F OpenAI teal
+		"copilot":  {"P", 0x85, 0x34, 0xF3, 0, 0, 0},      // #8534F3 GitHub Copilot purple
+		"gemini":   {"G", 0x47, 0x96, 0xE3, 0, 0, 0},      // #4796E3 Gemini blue
+		"opencode": {"O", 0xE5, 0xE7, 0xEB, 0x11, 0x11, 0x11}, // #E5E7EB light gray bg, #111 text
+		"agents":   {"A", 0x64, 0x74, 0x8B, 0, 0, 0},      // #64748B neutral slate
 	}
 
 	preloaded   = map[string]bool{}
@@ -140,8 +141,12 @@ func TextBadge(agent string, cols int) string {
 	if !ok {
 		return strings.Repeat(" ", cols)
 	}
-	chip := fmt.Sprintf("\x1b[48;2;%d;%d;%dm\x1b[38;2;255;255;255m\x1b[1m %s \x1b[0m",
-		bb.r, bb.g, bb.b, bb.letter)
+	tr, tg, tb := bb.tr, bb.tg, bb.tb
+	if tr == 0 && tg == 0 && tb == 0 {
+		tr, tg, tb = 255, 255, 255
+	}
+	chip := fmt.Sprintf("\x1b[48;2;%d;%d;%dm\x1b[38;2;%d;%d;%dm\x1b[1m %s \x1b[0m",
+		bb.r, bb.g, bb.b, tr, tg, tb, bb.letter)
 	pad := max(0, cols-3)
 	return chip + strings.Repeat(" ", pad)
 }
