@@ -67,7 +67,14 @@ type model struct {
 	status       string
 	mode         viewMode
 	sourceKind   string // kind filter for source view: "" = all, else KindSkill/Hook/Context
+	sourceTarget string // target name filter: "" = all
+	sourceGrouped bool  // false = flat (current), true = grouped by item
 	overlay      overlayModel
+}
+
+type groupedItem struct {
+	Item    source.Item
+	Entries []sync.Entry
 }
 
 func newModel(cfgPath string, cfg config.Config, items []source.Item, projectItems []source.ProjectItem) model {
@@ -110,21 +117,48 @@ func (m model) listHeight() int {
 }
 
 func (m model) filteredEntries() []sync.Entry {
-	if m.sourceKind == "" {
+	if m.sourceKind == "" && m.sourceTarget == "" {
 		return m.entries
 	}
 	out := make([]sync.Entry, 0, len(m.entries))
 	for _, e := range m.entries {
-		if e.Item.Kind == m.sourceKind {
-			out = append(out, e)
+		if m.sourceKind != "" && e.Item.Kind != m.sourceKind {
+			continue
 		}
+		if m.sourceTarget != "" && e.Target.Name != m.sourceTarget {
+			continue
+		}
+		out = append(out, e)
 	}
 	return out
+}
+
+func (m model) groupedItems() []groupedItem {
+	entries := m.filteredEntries()
+	type keyT = string
+	order := make([]keyT, 0)
+	seen := make(map[keyT]int) // key -> index in result
+	result := make([]groupedItem, 0)
+	for _, e := range entries {
+		k := e.Item.Kind + "/" + e.Item.Name
+		if idx, ok := seen[k]; ok {
+			result[idx].Entries = append(result[idx].Entries, e)
+		} else {
+			seen[k] = len(result)
+			order = append(order, k)
+			result = append(result, groupedItem{Item: e.Item, Entries: []sync.Entry{e}})
+		}
+	}
+	_ = order
+	return result
 }
 
 func (m model) currentLen() int {
 	if m.mode == viewProjects {
 		return len(m.projectItems)
+	}
+	if m.mode == viewSource && m.sourceGrouped {
+		return len(m.groupedItems())
 	}
 	return len(m.filteredEntries())
 }
@@ -213,9 +247,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 				m = m.adjustOffset()
 			}
-		case "g", "home":
+		case "home":
 			m.cursor = 0
 			m = m.adjustOffset()
+		case "g":
+			if m.mode == viewSource {
+				m.sourceGrouped = !m.sourceGrouped
+				m.cursor, m.offset = 0, 0
+				if n := m.currentLen(); m.cursor >= n {
+					m.cursor = max(0, n-1)
+				}
+				if m.sourceGrouped {
+					m.status = "grouped view"
+				} else {
+					m.status = "flat view"
+				}
+			} else {
+				m.cursor = 0
+				m = m.adjustOffset()
+			}
 		case "G", "end":
 			if n := m.currentLen(); n > 0 {
 				m.cursor = n - 1
@@ -231,14 +281,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.adjustOffset()
 		case "enter":
 			if m.mode == viewSource {
-				entries := m.filteredEntries()
-				if m.cursor < len(entries) {
-					e := entries[m.cursor]
-					if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-						m.status = "install: " + err.Error()
-					} else {
+				if m.sourceGrouped {
+					grouped := m.groupedItems()
+					if m.cursor < len(grouped) {
+						g := grouped[m.cursor]
+						var ok, fail int
+						for _, e := range g.Entries {
+							if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+								fail++
+							} else {
+								ok++
+							}
+						}
 						m.entries = sync.Inspect(m.cfg, m.items)
-						m.status = fmt.Sprintf("installed %s -> %s", e.Item.Name, e.Target.Name)
+						if fail > 0 {
+							m.status = fmt.Sprintf("installed %d, %d errors", ok, fail)
+						} else {
+							m.status = fmt.Sprintf("installed %s (%d targets)", g.Item.Name, ok)
+						}
+					}
+				} else {
+					entries := m.filteredEntries()
+					if m.cursor < len(entries) {
+						e := entries[m.cursor]
+						if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+							m.status = "install: " + err.Error()
+						} else {
+							m.entries = sync.Inspect(m.cfg, m.items)
+							m.status = fmt.Sprintf("installed %s -> %s", e.Item.Name, e.Target.Name)
+						}
 					}
 				}
 			}
@@ -267,6 +338,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.sourceKind = source.KindSkill
 				case source.KindSkill:
 					m.sourceKind = ""
+				}
+				m.cursor, m.offset = 0, 0
+			}
+		case "t":
+			if m.mode == viewSource {
+				targets := m.cfg.Targets
+				// cycle through ["", t1.Name, t2.Name, ...]
+				if m.sourceTarget == "" {
+					if len(targets) > 0 {
+						m.sourceTarget = targets[0].Name
+					}
+				} else {
+					found := false
+					for i, t := range targets {
+						if t.Name == m.sourceTarget {
+							if i+1 < len(targets) {
+								m.sourceTarget = targets[i+1].Name
+							} else {
+								m.sourceTarget = ""
+							}
+							found = true
+							break
+						}
+					}
+					if !found {
+						m.sourceTarget = ""
+					}
 				}
 				m.cursor, m.offset = 0, 0
 			}
@@ -342,44 +440,110 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "i":
 			if m.mode == viewSource {
-				entries := m.filteredEntries()
-				if m.cursor < len(entries) {
-					e := entries[m.cursor]
-					if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-						m.status = "install: " + err.Error()
-					} else {
+				if m.sourceGrouped {
+					grouped := m.groupedItems()
+					if m.cursor < len(grouped) {
+						g := grouped[m.cursor]
+						var ok, fail int
+						for _, e := range g.Entries {
+							if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+								fail++
+							} else {
+								ok++
+							}
+						}
 						m.entries = sync.Inspect(m.cfg, m.items)
-						m.status = fmt.Sprintf("installed %s -> %s", e.Item.Name, e.Target.Name)
+						if fail > 0 {
+							m.status = fmt.Sprintf("installed %d, %d errors", ok, fail)
+						} else {
+							m.status = fmt.Sprintf("installed %s (%d targets)", g.Item.Name, ok)
+						}
+					}
+				} else {
+					entries := m.filteredEntries()
+					if m.cursor < len(entries) {
+						e := entries[m.cursor]
+						if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+							m.status = "install: " + err.Error()
+						} else {
+							m.entries = sync.Inspect(m.cfg, m.items)
+							m.status = fmt.Sprintf("installed %s -> %s", e.Item.Name, e.Target.Name)
+						}
 					}
 				}
 			}
 		case "x":
 			if m.mode == viewSource {
-				entries := m.filteredEntries()
-				if m.cursor < len(entries) {
-					e := entries[m.cursor]
-					if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-						m.status = "uninstall: " + err.Error()
-					} else {
+				if m.sourceGrouped {
+					grouped := m.groupedItems()
+					if m.cursor < len(grouped) {
+						g := grouped[m.cursor]
+						var ok, fail int
+						for _, e := range g.Entries {
+							if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+								fail++
+							} else {
+								ok++
+							}
+						}
 						m.entries = sync.Inspect(m.cfg, m.items)
-						m.status = fmt.Sprintf("removed %s from %s", e.Item.Name, e.Target.Name)
+						if fail > 0 {
+							m.status = fmt.Sprintf("removed %d, %d errors", ok, fail)
+						} else {
+							m.status = fmt.Sprintf("removed %s (%d targets)", g.Item.Name, ok)
+						}
+					}
+				} else {
+					entries := m.filteredEntries()
+					if m.cursor < len(entries) {
+						e := entries[m.cursor]
+						if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+							m.status = "uninstall: " + err.Error()
+						} else {
+							m.entries = sync.Inspect(m.cfg, m.items)
+							m.status = fmt.Sprintf("removed %s from %s", e.Item.Name, e.Target.Name)
+						}
 					}
 				}
 			}
 		case "A":
 			if m.mode == viewSource {
-				entries := m.filteredEntries()
-				if m.cursor < len(entries) {
-					e := entries[m.cursor]
-					if e.Status != sync.StatusUnmanaged {
-						m.status = fmt.Sprintf("%s is not unmanaged", e.Item.Name)
-						break
-					}
-					if _, err := sync.Adopt(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-						m.status = "adopt: " + err.Error()
-					} else {
+				if m.sourceGrouped {
+					grouped := m.groupedItems()
+					if m.cursor < len(grouped) {
+						g := grouped[m.cursor]
+						var ok, fail int
+						for _, e := range g.Entries {
+							if e.Status != sync.StatusUnmanaged {
+								continue
+							}
+							if _, err := sync.Adopt(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+								fail++
+							} else {
+								ok++
+							}
+						}
 						m.entries = sync.Inspect(m.cfg, m.items)
-						m.status = fmt.Sprintf("adopted %s -> %s", e.Item.Name, e.Target.Name)
+						if fail > 0 {
+							m.status = fmt.Sprintf("adopted %d, %d errors", ok, fail)
+						} else {
+							m.status = fmt.Sprintf("adopted %s (%d targets)", g.Item.Name, ok)
+						}
+					}
+				} else {
+					entries := m.filteredEntries()
+					if m.cursor < len(entries) {
+						e := entries[m.cursor]
+						if e.Status != sync.StatusUnmanaged {
+							m.status = fmt.Sprintf("%s is not unmanaged", e.Item.Name)
+							break
+						}
+						if _, err := sync.Adopt(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+							m.status = "adopt: " + err.Error()
+						} else {
+							m.entries = sync.Inspect(m.cfg, m.items)
+							m.status = fmt.Sprintf("adopted %s -> %s", e.Item.Name, e.Target.Name)
+						}
 					}
 				}
 			}
@@ -513,7 +677,7 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 	padW := max(0, leftIW-tabsVis-3)
 	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+"─┐")
 
-	var filterContent string
+	var kindFilterContent string
 	if m.mode == viewSource {
 		filters := []struct{ kind, label string }{
 			{"", "all"},
@@ -529,20 +693,68 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 				parts[i] = tabStyle.Render(f.label)
 			}
 		}
-		filterContent = "  " + strings.Join(parts, dimStyle.Render(" · "))
+		kindFilterContent = "  " + strings.Join(parts, dimStyle.Render(" · "))
 	}
-	filterRow := aR("│") + padToWidth(filterContent, leftIW) + aR("│")
-	sepRow := aR("│") + aR(strings.Repeat("─", leftIW)) + aR("│")
+	kindFilterRow := aR("│") + padToWidth(kindFilterContent, leftIW) + aR("│")
 
 	var headerContent string
+	var contentRows []string
 	if m.mode == viewSource {
-		headerContent = "  " + fmt.Sprintf("%-8s  %-7s  %-24s  %s", "TARGET", "TYPE", "NAME", "STATUS")
-	} else {
-		headerContent = "  " + fmt.Sprintf("%-16s%-10s  %-7s  %-24s  %s", "PROJECT", "AGENT", "TYPE", "NAME", "PATH")
-	}
-	headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
+		// Build target filter row
+		targetParts := make([]string, 0, len(m.cfg.Targets)+1)
+		if m.sourceTarget == "" {
+			targetParts = append(targetParts, tabActiveStyle.Render("[all]"))
+		} else {
+			targetParts = append(targetParts, tabStyle.Render("all"))
+		}
+		for _, t := range m.cfg.Targets {
+			if t.Name == m.sourceTarget {
+				targetParts = append(targetParts, tabActiveStyle.Render("["+t.Name+"]"))
+			} else {
+				targetParts = append(targetParts, tabStyle.Render(t.Name))
+			}
+		}
+		targetFilterContent := "  " + strings.Join(targetParts, dimStyle.Render(" · "))
+		targetFilterRow := aR("│") + padToWidth(targetFilterContent, leftIW) + aR("│")
 
-	contentRows := m.buildContentRows(max(0, lh-2), leftIW)
+		sepRow := aR("│") + aR(strings.Repeat("─", leftIW)) + aR("│")
+
+		if m.sourceGrouped {
+			headerContent = "  " + fmt.Sprintf("%-7s  %-24s  TARGETS", "TYPE", "NAME")
+		} else {
+			headerContent = "  " + fmt.Sprintf("%-8s  %-7s  %-24s  %s", "TARGET", "TYPE", "NAME", "STATUS")
+		}
+		headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
+
+		contentRows = m.buildContentRows(max(0, lh-3), leftIW)
+
+		total := m.currentLen()
+		cur := m.cursor + 1
+		if total == 0 {
+			cur = 0
+		}
+		countStr := fmt.Sprintf(" %d of %d ", cur, total)
+		padW2 := max(0, leftIW-lipgloss.Width(countStr))
+		bottomBorder := aR("└") + aR(strings.Repeat("─", padW2)) + countStyle.Render(countStr) + aR("┘")
+
+		lines := make([]string, 0, lh+6)
+		lines = append(lines, topBorder)
+		lines = append(lines, kindFilterRow)
+		lines = append(lines, targetFilterRow)
+		lines = append(lines, sepRow)
+		lines = append(lines, headerRow)
+		for _, row := range contentRows {
+			lines = append(lines, aR("│")+padToWidth(row, leftIW)+aR("│"))
+		}
+		lines = append(lines, bottomBorder)
+		return lines
+	}
+
+	// Projects mode — original single-filter layout
+	sepRow := aR("│") + aR(strings.Repeat("─", leftIW)) + aR("│")
+	headerContent = "  " + fmt.Sprintf("%-16s%-10s  %-7s  %-24s  %s", "PROJECT", "AGENT", "TYPE", "NAME", "PATH")
+	headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
+	contentRows = m.buildContentRows(max(0, lh-2), leftIW)
 
 	total := m.currentLen()
 	cur := m.cursor + 1
@@ -553,9 +765,9 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 	padW2 := max(0, leftIW-lipgloss.Width(countStr))
 	bottomBorder := aR("└") + aR(strings.Repeat("─", padW2)) + countStyle.Render(countStr) + aR("┘")
 
-	lines := make([]string, 0, lh+4)
+	lines := make([]string, 0, lh+5)
 	lines = append(lines, topBorder)
-	lines = append(lines, filterRow)
+	lines = append(lines, kindFilterRow) // empty in projects mode
 	lines = append(lines, sepRow)
 	lines = append(lines, headerRow)
 	for _, row := range contentRows {
@@ -586,7 +798,81 @@ func (m model) buildRightPanel(lh, rightIW int) []string {
 	return lines
 }
 
+func statusDot(s sync.Status) string {
+	switch s {
+	case sync.StatusLinked:
+		return statusLinkedStyle.Render("●")
+	case sync.StatusCopied:
+		return statusCopiedStyle.Render("●")
+	case sync.StatusDrifted:
+		return statusDriftedStyle.Render("~")
+	case sync.StatusUnmanaged:
+		return statusUnmanagedStyle.Render("!")
+	case sync.StatusAbsent:
+		return statusAbsentStyle.Render("·")
+	default:
+		return dimStyle.Render("?")
+	}
+}
+
+func (m model) renderTargetDots(g groupedItem) string {
+	byTarget := make(map[string]sync.Entry, len(g.Entries))
+	for _, e := range g.Entries {
+		byTarget[e.Target.Name] = e
+	}
+	parts := make([]string, 0, len(m.cfg.Targets))
+	for _, t := range m.cfg.Targets {
+		if e, ok := byTarget[t.Name]; ok {
+			parts = append(parts, statusDot(e.Status))
+		} else {
+			parts = append(parts, dimStyle.Render("-"))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func (m model) buildGroupedRows(lh, leftIW int) []string {
+	rows := make([]string, 0, lh)
+
+	if len(m.cfg.Targets) == 0 {
+		rows = append(rows, dimStyle.Render("  no targets — press I for wizard, D to discover, n to add"))
+		for len(rows) < lh {
+			rows = append(rows, "")
+		}
+		return rows
+	}
+
+	grouped := m.groupedItems()
+	if len(grouped) == 0 {
+		rows = append(rows, dimStyle.Render("  no items found in "+m.cfg.Source))
+		for len(rows) < lh {
+			rows = append(rows, "")
+		}
+		return rows
+	}
+
+	end := min(m.offset+lh, len(grouped))
+	for i := m.offset; i < end; i++ {
+		g := grouped[i]
+		dots := m.renderTargetDots(g)
+		if i == m.cursor {
+			content := cursorStyle.Render("▌ ") + fmt.Sprintf("%-7s  %-24s  %s", g.Item.Kind, g.Item.Name, dots)
+			rows = append(rows, selectedRowStyle.Render(padToWidth(content, leftIW)))
+		} else {
+			rows = append(rows, "  "+fmt.Sprintf("%-7s  %-24s  %s", g.Item.Kind, g.Item.Name, dots))
+		}
+	}
+	for len(rows) < lh {
+		rows = append(rows, "")
+	}
+	return rows
+}
+
 func (m model) buildSourceRows(lh, leftIW int) []string {
+	if m.sourceGrouped {
+		return m.buildGroupedRows(lh, leftIW)
+	}
+
 	entries := m.filteredEntries()
 	rows := make([]string, 0, lh)
 
@@ -658,6 +944,52 @@ func (m model) buildProjectsRows(lh, leftIW int) []string {
 }
 
 func (m model) buildPreviewLines(lh, w int) []string {
+	if m.mode == viewSource && m.sourceGrouped {
+		grouped := m.groupedItems()
+		if m.cursor >= len(grouped) {
+			return make([]string, lh)
+		}
+		g := grouped[m.cursor]
+		byTarget := make(map[string]sync.Entry, len(g.Entries))
+		for _, e := range g.Entries {
+			byTarget[e.Target.Name] = e
+		}
+
+		// Build target breakdown header
+		header := make([]string, 0, len(m.cfg.Targets)+1)
+		for _, t := range m.cfg.Targets {
+			if e, ok := byTarget[t.Name]; ok {
+				header = append(header, fmt.Sprintf(" %-8s  %s", t.Name, statusDot(e.Status)))
+			} else {
+				header = append(header, fmt.Sprintf(" %-8s  %s", t.Name, dimStyle.Render("-")))
+			}
+		}
+		header = append(header, "") // blank separator
+
+		remaining := lh - len(header)
+		var raw []string
+		if remaining > 0 {
+			path, isDir, ok := m.currentPreviewPath()
+			if ok {
+				raw = readPreview(path, isDir, remaining, w)
+			}
+		}
+
+		lines := make([]string, lh)
+		for i, h := range header {
+			if i < lh {
+				lines[i] = h
+			}
+		}
+		base := len(header)
+		for i, r := range raw {
+			if base+i < lh {
+				lines[base+i] = r
+			}
+		}
+		return lines
+	}
+
 	path, isDir, ok := m.currentPreviewPath()
 	var raw []string
 	if ok {
@@ -674,6 +1006,17 @@ func (m model) buildPreviewLines(lh, w int) []string {
 
 func (m model) currentPreviewPath() (path string, isDir bool, ok bool) {
 	if m.mode == viewSource {
+		if m.sourceGrouped {
+			grouped := m.groupedItems()
+			if m.cursor >= len(grouped) {
+				return "", false, false
+			}
+			item := grouped[m.cursor].Item
+			if item.Kind == source.KindSkill {
+				return filepath.Join(item.Path, "SKILL.md"), false, true
+			}
+			return item.Path, false, true
+		}
 		entries := m.filteredEntries()
 		if m.cursor >= len(entries) {
 			return "", false, false
@@ -792,7 +1135,7 @@ func (m model) renderFooter(w int) string {
 	}
 	var right string
 	if m.mode == viewSource {
-		right = dimStyle.Render("i install  A adopt  x remove  S sync  n/d target  ←/→ filter  r rescan  ? help  q quit ")
+		right = dimStyle.Render("i install  A adopt  x remove  S sync  g group  t target  n/d target  ←/→ filter  r rescan  ? help  q quit ")
 	} else {
 		right = dimStyle.Render("n/d project  r rescan  ? help  q quit ")
 	}

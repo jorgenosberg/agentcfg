@@ -178,6 +178,8 @@ func (o *helpOverlay) View(w, h int) string {
 		{"x", "uninstall selected item"},
 		{"S", "sync all (install absent + update drifted)"},
 		{"f / ← / →", "cycle filter (all / skills / hooks / context)"},
+		{"g", "toggle grouped/flat view"},
+		{"t", "cycle target filter"},
 		{"n", "add target"},
 		{"d", "remove target"},
 	}
