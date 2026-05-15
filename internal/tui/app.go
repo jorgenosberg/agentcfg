@@ -423,7 +423,7 @@ var (
 	statusCopiedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
 	statusDriftedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	statusAbsentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	statusForeignStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	statusUnmanagedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 )
 
 func renderStatus(s sync.Status) string {
@@ -436,8 +436,8 @@ func renderStatus(s sync.Status) string {
 		return statusDriftedStyle.Render(string(s))
 	case sync.StatusAbsent:
 		return statusAbsentStyle.Render(string(s))
-	case sync.StatusForeign:
-		return statusForeignStyle.Render(string(s))
+	case sync.StatusUnmanaged:
+		return statusUnmanagedStyle.Render(string(s))
 	default:
 		return string(s)
 	}

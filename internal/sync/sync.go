@@ -19,7 +19,7 @@ const (
 	StatusLinked  Status = "linked"  // installed as symlink pointing at source
 	StatusCopied  Status = "copied"  // installed as a copy (snapshot)
 	StatusDrifted Status = "drifted" // copy exists but source has changed
-	StatusForeign Status = "foreign" // present but not managed by agentcfg
+	StatusUnmanaged Status = "unmanaged" // present but not managed by agentcfg
 	StatusAbsent  Status = "absent"  // not installed
 )
 
@@ -64,7 +64,7 @@ func Install(t config.Target, strategy string, it source.Item) (Status, error) {
 	switch s := statusOf(dest, it.Path, strategy); s {
 	case StatusLinked, StatusCopied:
 		return s, nil
-	case StatusForeign:
+	case StatusUnmanaged:
 		return s, fmt.Errorf("%s exists and is not managed by agentcfg", dest)
 	case StatusDrifted:
 		// remove stale copy before reinstalling
@@ -89,13 +89,13 @@ func Install(t config.Target, strategy string, it source.Item) (Status, error) {
 	}
 }
 
-// Uninstall removes the managed entry. It refuses to delete foreign content.
+// Uninstall removes the managed entry. It refuses to delete unmanaged content.
 func Uninstall(t config.Target, strategy string, it source.Item) error {
 	dest := destPath(t, it)
 	switch statusOf(dest, it.Path, strategy) {
 	case StatusAbsent:
 		return nil
-	case StatusForeign:
+	case StatusUnmanaged:
 		return fmt.Errorf("%s not managed by agentcfg; refusing to remove", dest)
 	}
 	return os.RemoveAll(dest)
@@ -115,17 +115,17 @@ func statusOf(dest, src, strategy string) Status {
 		return StatusAbsent
 	}
 	if err != nil {
-		return StatusForeign
+		return StatusUnmanaged
 	}
 	if fi.Mode()&os.ModeSymlink != 0 {
 		target, err := os.Readlink(dest)
 		if err != nil {
-			return StatusForeign
+			return StatusUnmanaged
 		}
 		if target == src {
 			return StatusLinked
 		}
-		return StatusForeign
+		return StatusUnmanaged
 	}
 	if strategy == config.StrategyCopy {
 		if sameContent(dest, src) {
