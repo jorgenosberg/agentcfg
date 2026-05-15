@@ -174,6 +174,7 @@ func (o *helpOverlay) View(w, h int) string {
 	}
 	sourceOnly := []binding{
 		{"enter / i", "install selected item"},
+		{"A", "adopt unmanaged item (replace existing file with managed link/copy)"},
 		{"x", "uninstall selected item"},
 		{"S", "sync all (install absent + update drifted)"},
 		{"f / ← / →", "cycle filter (all / skills / hooks / context)"},

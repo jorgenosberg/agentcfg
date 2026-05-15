@@ -101,6 +101,21 @@ func Uninstall(t config.Target, strategy string, it source.Item) error {
 	return os.RemoveAll(dest)
 }
 
+// Adopt replaces an unmanaged file at the target with a managed install.
+// It is equivalent to Install for absent, drifted, linked, or copied entries.
+func Adopt(t config.Target, strategy string, it source.Item) (Status, error) {
+	dest := destPath(t, it)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return "", err
+	}
+	if statusOf(dest, it.Path, strategy) == StatusUnmanaged {
+		if err := os.RemoveAll(dest); err != nil {
+			return "", fmt.Errorf("remove unmanaged %s: %w", dest, err)
+		}
+	}
+	return Install(t, strategy, it)
+}
+
 func destPath(t config.Target, it source.Item) string {
 	sub := t.SubdirFor(it.Kind)
 	if sub == "" {
@@ -133,7 +148,7 @@ func statusOf(dest, src, strategy string) Status {
 		}
 		return StatusDrifted
 	}
-	return StatusForeign
+	return StatusUnmanaged
 }
 
 // sameContent is a coarse check: matching size and (for files) byte equality.
@@ -179,14 +194,15 @@ type SyncResult struct {
 	Err       error
 }
 
-// Sync installs all absent or drifted items across all targets. When dryRun is
-// true it returns what would happen without making any changes. Successful
-// installs are recorded in lck (caller is responsible for persisting it).
-func Sync(cfg config.Config, items []source.Item, lck lock.Lock, dryRun bool) []SyncResult {
+// Sync installs all absent or drifted items across all targets. When force is
+// true, unmanaged entries are also adopted (existing files replaced). When
+// dryRun is true it returns what would happen without making any changes.
+// Successful installs are recorded in lck (caller is responsible for persisting it).
+func Sync(cfg config.Config, items []source.Item, lck lock.Lock, dryRun, force bool) []SyncResult {
 	entries := Inspect(cfg, items)
 	var out []SyncResult
 	for _, e := range entries {
-		if e.Status != StatusAbsent && e.Status != StatusDrifted {
+		if e.Status != StatusAbsent && e.Status != StatusDrifted && !(force && e.Status == StatusUnmanaged) {
 			continue
 		}
 		if dryRun {
@@ -194,7 +210,11 @@ func Sync(cfg config.Config, items []source.Item, lck lock.Lock, dryRun bool) []
 			continue
 		}
 		strategy := e.Target.ResolveStrategy(cfg.DefaultStrategy)
-		newStatus, err := Install(e.Target, strategy, e.Item)
+		install := Install
+		if force && e.Status == StatusUnmanaged {
+			install = Adopt
+		}
+		newStatus, err := install(e.Target, strategy, e.Item)
 		if err != nil {
 			out = append(out, SyncResult{Entry: e, OldStatus: e.Status, Err: err})
 			continue

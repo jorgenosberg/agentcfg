@@ -591,6 +591,7 @@ func newStatusCmd(load func() (config.Config, error)) *cobra.Command {
 
 func newInstallCmd(load func() (config.Config, error)) *cobra.Command {
 	var targetName string
+	var force bool
 	c := &cobra.Command{
 		Use:   "install <item>",
 		Short: "Install an item into one or more targets",
@@ -612,8 +613,12 @@ func newInstallCmd(load func() (config.Config, error)) *cobra.Command {
 			if len(targets) == 0 {
 				return fmt.Errorf("no matching targets")
 			}
+			install := sync.Install
+			if force {
+				install = sync.Adopt
+			}
 			for _, t := range targets {
-				st, err := sync.Install(t, t.ResolveStrategy(cfg.DefaultStrategy), item)
+				st, err := install(t, t.ResolveStrategy(cfg.DefaultStrategy), item)
 				if err != nil {
 					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\terror: %v\n", t.Name, item.Name, err)
 					continue
@@ -624,6 +629,7 @@ func newInstallCmd(load func() (config.Config, error)) *cobra.Command {
 		},
 	}
 	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")
+	c.Flags().BoolVar(&force, "force", false, "adopt unmanaged files (replace existing files not managed by agentcfg)")
 	return c
 }
 
@@ -759,6 +765,7 @@ func selectTargets(all []config.Target, name string) []config.Target {
 func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 	var dryRun bool
 	var noBackup bool
+	var force bool
 	var targetName string
 	c := &cobra.Command{
 		Use:   "sync",
@@ -806,7 +813,7 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 				}
 			}
 
-			results := sync.Sync(cfg, items, lck, dryRun)
+			results := sync.Sync(cfg, items, lck, dryRun, force)
 
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			if dryRun {
@@ -845,6 +852,7 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 	}
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be installed without making changes")
 	c.Flags().BoolVar(&noBackup, "no-backup", false, "skip automatic backup before syncing")
+	c.Flags().BoolVar(&force, "force", false, "adopt unmanaged files (replace existing files not managed by agentcfg)")
 	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")
 	return c
 }

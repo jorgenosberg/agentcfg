@@ -7,8 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alecthomas/chroma/v2"
+	chromaformatters "github.com/alecthomas/chroma/v2/formatters"
+	"github.com/alecthomas/chroma/v2/lexers"
+	"github.com/alecthomas/chroma/v2/styles"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/icons"
@@ -361,6 +366,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "A":
+			if m.mode == viewSource {
+				entries := m.filteredEntries()
+				if m.cursor < len(entries) {
+					e := entries[m.cursor]
+					if e.Status != sync.StatusUnmanaged {
+						m.status = fmt.Sprintf("%s is not unmanaged", e.Item.Name)
+						break
+					}
+					if _, err := sync.Adopt(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
+						m.status = "adopt: " + err.Error()
+					} else {
+						m.entries = sync.Inspect(m.cfg, m.items)
+						m.status = fmt.Sprintf("adopted %s -> %s", e.Item.Name, e.Target.Name)
+					}
+				}
+			}
 		case "S":
 			if m.mode == viewSource {
 				lockPath, err := lock.DefaultPath()
@@ -373,7 +395,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.status = "sync: " + err.Error()
 					break
 				}
-				results := sync.Sync(m.cfg, m.items, lck, false)
+				results := sync.Sync(m.cfg, m.items, lck, false, false)
 				var installed, updated int
 				for _, r := range results {
 					if r.Err == nil {
@@ -706,6 +728,10 @@ func readPreview(path string, isDir bool, maxLines, maxWidth int) []string {
 		return []string{dimStyle.Render("  [binary file]")}
 	}
 
+	if lines := syntaxHighlight(path, data, maxLines, maxWidth); lines != nil {
+		return lines
+	}
+
 	rawLines := strings.Split(string(data), "\n")
 	result := make([]string, 0, min(len(rawLines), maxLines))
 	for i, line := range rawLines {
@@ -713,6 +739,45 @@ func readPreview(path string, isDir bool, maxLines, maxWidth int) []string {
 			break
 		}
 		result = append(result, previewStyle.Render(" "+truncateRunes(line, maxWidth-1)))
+	}
+	return result
+}
+
+func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string {
+	lexer := lexers.Match(path)
+	if lexer == nil {
+		lexer = lexers.Analyse(string(data))
+	}
+	if lexer == nil {
+		return nil
+	}
+	lexer = chroma.Coalesce(lexer)
+
+	style := styles.Get("monokai")
+	if style == nil {
+		return nil
+	}
+
+	tokens, err := lexer.Tokenise(nil, string(data))
+	if err != nil {
+		return nil
+	}
+	var buf bytes.Buffer
+	if err := chromaformatters.TTY16m.Format(&buf, style, tokens); err != nil {
+		return nil
+	}
+
+	const reset = "\033[0m"
+	rawLines := strings.Split(buf.String(), "\n")
+	result := make([]string, 0, min(len(rawLines), maxLines))
+	for i, line := range rawLines {
+		if i >= maxLines {
+			break
+		}
+		if lipgloss.Width(line) > maxWidth-1 {
+			line = ansi.Truncate(line, maxWidth-1, "")
+		}
+		result = append(result, " "+line+reset)
 	}
 	return result
 }
@@ -727,7 +792,7 @@ func (m model) renderFooter(w int) string {
 	}
 	var right string
 	if m.mode == viewSource {
-		right = dimStyle.Render("i install  x remove  S sync  n/d target  ←/→ filter  r rescan  ? help  q quit ")
+		right = dimStyle.Render("i install  A adopt  x remove  S sync  n/d target  ←/→ filter  r rescan  ? help  q quit ")
 	} else {
 		right = dimStyle.Render("n/d project  r rescan  ? help  q quit ")
 	}
