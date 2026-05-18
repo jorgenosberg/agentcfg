@@ -22,6 +22,7 @@ const (
 	StatusUnmanaged     Status = "unmanaged"     // present but not managed by agentcfg
 	StatusAbsent        Status = "absent"        // not installed
 	StatusNotApplicable Status = "n/a"           // target does not support this item kind
+	StatusDisabled      Status = "disabled"      // user has disabled this item for this target
 )
 
 // Entry is the per-(target, item) state used for listing.
@@ -39,6 +40,15 @@ func Inspect(cfg config.Config, items []source.Item) []Entry {
 		strategy := t.ResolveStrategy(cfg.DefaultStrategy)
 		for _, it := range items {
 			if t.Excludes(it) {
+				continue
+			}
+			if t.IsDisabled(it) {
+				out = append(out, Entry{
+					Target: t,
+					Item:   it,
+					Status: StatusDisabled,
+					Dest:   destPath(t, it),
+				})
 				continue
 			}
 			if !t.SupportsKind(it.Kind) {
