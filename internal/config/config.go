@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jorgenosberg/agentcfg/internal/agent"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 )
 
@@ -46,15 +47,28 @@ type Project struct {
 type Target struct {
 	Name     string            `json:"name"`
 	Path     string            `json:"path"`
+	Agent    string            `json:"agent,omitempty"`    // agent type: "claude", "codex", etc.
 	Strategy string            `json:"strategy,omitempty"` // overrides Config.DefaultStrategy
 	Subdirs  map[string]string `json:"subdirs,omitempty"`  // per-kind subdir overrides
 	Exclude  []string          `json:"exclude,omitempty"`  // "kind/name" pairs to skip, e.g. "context/GEMINI.md"
+	Disabled []string          `json:"disabled,omitempty"` // user-toggled-off item names
 }
 
 // Excludes reports whether it should be skipped for this target.
 func (t Target) Excludes(it source.Item) bool {
 	for _, e := range t.Exclude {
 		if e == it.Kind+"/"+it.Name || e == it.Name {
+			return true
+		}
+	}
+	return false
+}
+
+// IsDisabled reports whether the user has toggled this item off for this target.
+// Checks both "kind/name" and plain "name" entries, matching Excludes behaviour.
+func (t Target) IsDisabled(it source.Item) bool {
+	for _, d := range t.Disabled {
+		if d == it.Kind+"/"+it.Name || d == it.Name {
 			return true
 		}
 	}
@@ -75,21 +89,39 @@ func (t Target) ResolveStrategy(fallback string) string {
 }
 
 // SupportsKind reports whether this target supports the given item kind.
-// If Subdirs is nil, all kinds are supported. If Subdirs is explicitly set,
-// only kinds with a key present are supported.
+// Precedence: explicit Subdirs override agent profile. If neither is set,
+// all kinds are supported.
 func (t Target) SupportsKind(kind string) bool {
-	if t.Subdirs == nil {
-		return true
+	if t.Subdirs != nil {
+		_, ok := t.Subdirs[kind]
+		return ok
 	}
-	_, ok := t.Subdirs[kind]
-	return ok
+	if t.Agent != "" {
+		if p, ok := agent.Get(t.Agent); ok {
+			for _, k := range p.SupportedKinds {
+				if k == kind {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return true
 }
 
 // SubdirFor returns the per-kind subdirectory under the target root.
+// Precedence: Subdirs → agent profile → defaultSubdirs.
 func (t Target) SubdirFor(kind string) string {
 	if t.Subdirs != nil {
 		if v, ok := t.Subdirs[kind]; ok {
 			return v
+		}
+	}
+	if t.Agent != "" {
+		if p, ok := agent.Get(t.Agent); ok {
+			if v, ok := p.Subdirs[kind]; ok {
+				return v
+			}
 		}
 	}
 	return defaultSubdirs[kind]
