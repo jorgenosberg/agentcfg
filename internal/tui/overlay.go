@@ -165,23 +165,27 @@ func (o *helpOverlay) View(w, h int) string {
 		{"G / end", "go to bottom"},
 		{"ctrl+u / pgup", "half-page up"},
 		{"ctrl+d / pgdown", "half-page down"},
-		{"1 / 2 / tab", "switch view"},
-		{"r", "rescan source"},
+		{"1 / 2 / 3 / tab", "switch view"},
+		{"r", "rescan"},
 		{"I", "run init wizard"},
 		{"D", "discover agents"},
 		{"? / esc", "close this help"},
 		{"q", "quit"},
 	}
 	sourceOnly := []binding{
-		{"enter / i", "install selected item"},
+		{"enter / i", "install item to all targets"},
 		{"A", "adopt unmanaged item (replace existing file with managed link/copy)"},
-		{"x", "uninstall selected item"},
+		{"x", "uninstall item from all targets"},
 		{"S", "sync all (install absent + update drifted)"},
-		{"f / ← / →", "cycle filter (all / skills / hooks / context)"},
-		{"g", "toggle grouped/flat view"},
+		{"f / ← / →", "cycle kind filter (all / skills / hooks / context)"},
 		{"t", "cycle target filter"},
 		{"n", "add target"},
-		{"d", "remove target"},
+		{"d", "remove filtered target from config"},
+	}
+	agentsOnly := []binding{
+		{"x", "remove item from agent folder"},
+		{"t", "cycle agent filter"},
+		{"n", "add target"},
 	}
 	projectsOnly := []binding{
 		{"n", "add project"},
@@ -198,8 +202,9 @@ func (o *helpOverlay) View(w, h int) string {
 		sb.WriteByte('\n')
 	}
 	writeSection("Global", global)
-	writeSection("Source view", sourceOnly)
-	writeSection("Projects view", projectsOnly)
+	writeSection("[1] Source view", sourceOnly)
+	writeSection("[2] Agents view", agentsOnly)
+	writeSection("[3] Projects view", projectsOnly)
 
 	return renderOverlayBox(w, h, strings.TrimRight(sb.String(), "\n"), "Keybindings", 56)
 }
