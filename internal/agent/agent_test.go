@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/jorgenosberg/agentcfg/internal/agent"
+	"github.com/jorgenosberg/agentcfg/internal/source"
 )
 
 func TestGetKnownAgent(t *testing.T) {
@@ -48,6 +49,42 @@ func TestNamesContainsAll(t *testing.T) {
 	for _, e := range expected {
 		if !got[e] {
 			t.Errorf("missing agent name: %q", e)
+		}
+	}
+}
+
+func TestProfileConsistency(t *testing.T) {
+	validKinds := map[string]bool{
+		source.KindSkill:   true,
+		source.KindHook:    true,
+		source.KindContext: true,
+		source.KindCommand: true,
+		source.KindRule:    true,
+	}
+	for _, name := range agent.Names() {
+		p, _ := agent.Get(name)
+		// Build set of kinds from Subdirs keys
+		fromSubdirs := make(map[string]bool, len(p.Subdirs))
+		for k := range p.Subdirs {
+			fromSubdirs[k] = true
+		}
+		// Build set from SupportedKinds
+		fromKinds := make(map[string]bool, len(p.SupportedKinds))
+		for _, k := range p.SupportedKinds {
+			fromKinds[k] = true
+		}
+		for k := range fromSubdirs {
+			if !fromKinds[k] {
+				t.Errorf("agent %q: Subdirs has kind %q but SupportedKinds does not", name, k)
+			}
+			if !validKinds[k] {
+				t.Errorf("agent %q: invalid kind %q", name, k)
+			}
+		}
+		for k := range fromKinds {
+			if !fromSubdirs[k] {
+				t.Errorf("agent %q: SupportedKinds has kind %q but Subdirs does not", name, k)
+			}
 		}
 	}
 }

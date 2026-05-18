@@ -1,6 +1,10 @@
 package agent
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/jorgenosberg/agentcfg/internal/source"
+)
 
 // Profile describes the default configuration for a known agent type.
 type Profile struct {
@@ -23,44 +27,44 @@ const (
 
 var profiles = map[string]Profile{
 	Claude: {
-		Subdirs:        map[string]string{"skill": "skills", "hook": "hooks", "context": "", "command": "commands"},
-		SupportedKinds: []string{"skill", "hook", "context", "command"},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindHook: "hooks", source.KindContext: "", source.KindCommand: "commands"},
+		SupportedKinds: []string{source.KindSkill, source.KindHook, source.KindContext, source.KindCommand},
 	},
 	Codex: {
-		Subdirs:        map[string]string{"skill": "skills", "context": ""},
-		SupportedKinds: []string{"skill", "context"},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: ""},
+		SupportedKinds: []string{source.KindSkill, source.KindContext},
 	},
 	Copilot: {
-		Subdirs:        map[string]string{"context": ""},
-		SupportedKinds: []string{"context"},
+		Subdirs:        map[string]string{source.KindContext: "", source.KindCommand: ".github/prompts"},
+		SupportedKinds: []string{source.KindContext, source.KindCommand},
 	},
 	Gemini: {
-		Subdirs:        map[string]string{"context": ""},
-		SupportedKinds: []string{"context"},
+		Subdirs:        map[string]string{source.KindContext: ""},
+		SupportedKinds: []string{source.KindContext},
 	},
 	Cursor: {
-		Subdirs:        map[string]string{"rule": ""},
-		SupportedKinds: []string{"rule"},
+		Subdirs:        map[string]string{source.KindRule: ""},
+		SupportedKinds: []string{source.KindRule},
 	},
 	Cline: {
-		Subdirs:        map[string]string{"rule": ""},
-		SupportedKinds: []string{"rule"},
+		Subdirs:        map[string]string{source.KindRule: ""},
+		SupportedKinds: []string{source.KindRule},
 	},
 	Windsurf: {
-		Subdirs:        map[string]string{"rule": ""},
-		SupportedKinds: []string{"rule"},
+		Subdirs:        map[string]string{source.KindRule: ""},
+		SupportedKinds: []string{source.KindRule},
 	},
 	Aider: {
-		Subdirs:        map[string]string{"context": ""},
-		SupportedKinds: []string{"context"},
+		Subdirs:        map[string]string{source.KindContext: ""},
+		SupportedKinds: []string{source.KindContext},
 	},
 	Agents: {
-		Subdirs:        map[string]string{"skill": "skills", "context": ""},
-		SupportedKinds: []string{"skill", "context"},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: ""},
+		SupportedKinds: []string{source.KindSkill, source.KindContext},
 	},
 	Opencode: {
-		Subdirs:        map[string]string{"skill": "skills", "context": ""},
-		SupportedKinds: []string{"skill", "context"},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: ""},
+		SupportedKinds: []string{source.KindSkill, source.KindContext},
 	},
 }
 
