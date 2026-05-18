@@ -510,6 +510,86 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "T":
+			if m.mode == viewAgentcfg {
+				grouped := m.groupedItems()
+				if m.cursor >= len(grouped) {
+					break
+				}
+				g := grouped[m.cursor]
+				item := g.Item
+
+				targets := m.cfg.Targets
+				if m.sourceTarget != "" {
+					for _, t := range m.cfg.Targets {
+						if t.Name == m.sourceTarget {
+							targets = []config.Target{t}
+							break
+						}
+					}
+				}
+
+				allDisabled := true
+				for _, t := range targets {
+					if !t.IsDisabled(item) {
+						allDisabled = false
+						break
+					}
+				}
+				disable := !allDisabled
+
+				cfgPath := m.cfgPath
+				return m, func() tea.Msg {
+					for _, t := range targets {
+						if err := sync.Toggle(cfgPath, t.Name, item, disable); err != nil {
+							return cfgReloadMsg{err: err}
+						}
+					}
+					return cfgReloadMsg{err: nil}
+				}
+			}
+		case "u":
+			if m.mode == viewAgentcfg {
+				grouped := m.groupedItems()
+				if m.cursor >= len(grouped) {
+					break
+				}
+				g := grouped[m.cursor]
+				item := g.Item
+
+				targets := m.cfg.Targets
+				if m.sourceTarget != "" {
+					for _, t := range m.cfg.Targets {
+						if t.Name == m.sourceTarget {
+							targets = []config.Target{t}
+							break
+						}
+					}
+				}
+
+				targetCount := len(targets)
+				detail := fmt.Sprintf("Place a real copy in %d target dir(s) and stop managing. File stays in source.", targetCount)
+				if targetCount == 1 {
+					detail = fmt.Sprintf("Place a real copy in %s and stop managing. File stays in source.", targets[0].Path)
+				}
+
+				cfgPath, cfg := m.cfgPath, m.cfg
+				m.overlay = newConfirmOverlay(
+					fmt.Sprintf("Unmanage %q?", item.Name),
+					detail,
+					func() error {
+						for _, t := range targets {
+							if err := sync.Unmanage(t, t.ResolveStrategy(cfg.DefaultStrategy), item); err != nil {
+								return err
+							}
+							if err := sync.Toggle(cfgPath, t.Name, item, true); err != nil {
+								return err
+							}
+						}
+						return nil
+					},
+				)
+			}
 		case "S":
 			if m.mode == viewAgentcfg {
 				lockPath, err := lock.DefaultPath()
@@ -574,6 +654,7 @@ var (
 	statusDriftedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	statusAbsentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	statusUnmanagedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	statusDisabledStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
 )
 
 func renderStatus(s sync.Status) string {
@@ -588,6 +669,8 @@ func renderStatus(s sync.Status) string {
 		return statusAbsentStyle.Render(string(s))
 	case sync.StatusUnmanaged:
 		return statusUnmanagedStyle.Render(string(s))
+	case sync.StatusDisabled:
+		return statusDisabledStyle.Render("off")
 	default:
 		return string(s)
 	}
@@ -875,6 +958,8 @@ func (m model) renderBadgeCells(g groupedItem, leftIW int) string {
 				sym, st = "~", statusDriftedStyle
 			case sync.StatusUnmanaged:
 				sym, st = "!", statusUnmanagedStyle
+			case sync.StatusDisabled:
+				sym, st = "○", statusDisabledStyle
 			default:
 				sym, st = "─", dimStyle
 			}
@@ -1150,7 +1235,7 @@ func (m model) renderFooter(w int) string {
 	var right string
 	switch m.mode {
 	case viewAgentcfg:
-		right = dimStyle.Render("i install  A adopt  x remove  S sync  t target  n/d target  ←/→ filter  r rescan  ? help  q quit ")
+		right = dimStyle.Render("i install  A adopt  x remove  T toggle  u unmanage  S sync  t target  n/d target  ←/→ filter  r rescan  ? help  q quit ")
 	case viewAgentFolders:
 		right = dimStyle.Render("x remove  t agent  n target  r rescan  ? help  q quit ")
 	default: // viewProjects

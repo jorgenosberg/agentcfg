@@ -176,6 +176,8 @@ func (o *helpOverlay) View(w, h int) string {
 		{"enter / i", "install item to all targets"},
 		{"A", "adopt unmanaged item (replace existing file with managed link/copy)"},
 		{"x", "uninstall item from all targets"},
+		{"T", "toggle item disabled/enabled for active target (or all)"},
+		{"u", "unmanage item — place real copy in target dir, stop syncing"},
 		{"S", "sync all (install absent + update drifted)"},
 		{"f / ← / →", "cycle kind filter (all / skills / hooks / context)"},
 		{"t", "cycle target filter"},
