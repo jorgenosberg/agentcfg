@@ -79,3 +79,22 @@ func TestSubdirForWithAgentProfile(t *testing.T) {
 		t.Errorf("SubdirFor context: want %q got %q", "", got)
 	}
 }
+
+func TestSubdirForExplicitSubdirsNoFallthrough(t *testing.T) {
+	// When Subdirs is explicitly set, SubdirFor must not fall through to the
+	// agent profile for missing keys. SupportsKind and SubdirFor must agree.
+	tgt := config.Target{
+		Name:    "custom",
+		Path:    "/tmp/custom",
+		Agent:   "claude",
+		Subdirs: map[string]string{"skill": "skills"},
+	}
+	// hook is not in Subdirs; SupportsKind returns false for it
+	if tgt.SupportsKind("hook") {
+		t.Error("hook should not be supported with explicit Subdirs that omits it")
+	}
+	// SubdirFor should also return "" (not the claude profile's "hooks")
+	if got := tgt.SubdirFor("hook"); got != "" {
+		t.Errorf("SubdirFor hook with explicit Subdirs: want %q got %q", "", got)
+	}
+}

@@ -65,7 +65,8 @@ func (t Target) Excludes(it source.Item) bool {
 }
 
 // IsDisabled reports whether the user has toggled this item off for this target.
-// Checks both "kind/name" and plain "name" entries, matching Excludes behaviour.
+// It checks both "kind/name" and plain "name" entries, using the same format as
+// Exclude entries. Unlike Exclude, Disabled is a reversible user preference.
 func (t Target) IsDisabled(it source.Item) bool {
 	for _, d := range t.Disabled {
 		if d == it.Kind+"/"+it.Name || d == it.Name {
@@ -110,12 +111,12 @@ func (t Target) SupportsKind(kind string) bool {
 }
 
 // SubdirFor returns the per-kind subdirectory under the target root.
-// Precedence: Subdirs → agent profile → defaultSubdirs.
+// When Subdirs is explicitly set, it is the complete specification and there
+// is no fallthrough to the agent profile or defaultSubdirs. Otherwise,
+// precedence is: agent profile → defaultSubdirs.
 func (t Target) SubdirFor(kind string) string {
 	if t.Subdirs != nil {
-		if v, ok := t.Subdirs[kind]; ok {
-			return v
-		}
+		return t.Subdirs[kind]
 	}
 	if t.Agent != "" {
 		if p, ok := agent.Get(t.Agent); ok {
