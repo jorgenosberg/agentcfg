@@ -32,8 +32,9 @@ func KnownAgents() []config.Target {
 
 	return []config.Target{
 		{
-			Name: "claude",
-			Path: filepath.Join(home, ".claude"),
+			Name:  "claude",
+			Path:  filepath.Join(home, ".claude"),
+			Agent: "claude",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindHook:    "hooks",
@@ -41,38 +42,43 @@ func KnownAgents() []config.Target {
 			},
 		},
 		{
-			Name: "codex",
-			Path: filepath.Join(home, ".codex"),
+			Name:  "codex",
+			Path:  filepath.Join(home, ".codex"),
+			Agent: "codex",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindContext: "",
 			},
 		},
 		{
-			Name: "copilot",
-			Path: filepath.Join(home, ".copilot"),
+			Name:  "copilot",
+			Path:  filepath.Join(home, ".copilot"),
+			Agent: "copilot",
 			Subdirs: map[string]string{
 				source.KindContext: "",
 			},
 		},
 		{
-			Name: "gemini",
-			Path: filepath.Join(home, ".gemini"),
+			Name:  "gemini",
+			Path:  filepath.Join(home, ".gemini"),
+			Agent: "gemini",
 			Subdirs: map[string]string{
 				source.KindContext: "",
 			},
 		},
 		{
-			Name: "opencode",
-			Path: filepath.Join(home, ".config", "opencode"),
+			Name:  "opencode",
+			Path:  filepath.Join(home, ".config", "opencode"),
+			Agent: "opencode",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindContext: "",
 			},
 		},
 		{
-			Name: "agents",
-			Path: filepath.Join(home, ".agents"),
+			Name:  "agents",
+			Path:  filepath.Join(home, ".agents"),
+			Agent: "agents",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindContext: "",
@@ -92,4 +98,15 @@ func Discover() []config.Target {
 		out = append(out, a)
 	}
 	return out
+}
+
+// TargetFor constructs a Target for the given agent type, path, and name.
+// Subdirs is left nil so SubdirFor and SupportsKind derive defaults from the
+// agent profile. Callers can override Subdirs after construction if needed.
+func TargetFor(agentName, path, targetName string) config.Target {
+	return config.Target{
+		Name:  targetName,
+		Path:  path,
+		Agent: agentName,
+	}
 }
