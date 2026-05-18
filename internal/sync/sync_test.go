@@ -201,3 +201,77 @@ func TestToggleIdempotent(t *testing.T) {
 		t.Errorf("expected exactly 1 disabled entry, got %d", count)
 	}
 }
+
+func TestUnmanage(t *testing.T) {
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	item := makeSourceItem(t, src, source.KindContext, "CLAUDE.md", "hello world")
+	tgt := config.Target{Name: "claude", Path: tgtDir}
+
+	// Install as symlink first
+	if _, err := sync.Install(tgt, config.StrategyLink, item); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	dest := filepath.Join(tgtDir, "CLAUDE.md")
+	fi, _ := os.Lstat(dest)
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("expected symlink before Unmanage")
+	}
+
+	if err := sync.Unmanage(tgt, config.StrategyLink, item); err != nil {
+		t.Fatalf("Unmanage: %v", err)
+	}
+
+	fi, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatalf("dest should exist after Unmanage: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Error("dest should be a real file, not a symlink, after Unmanage")
+	}
+	data, _ := os.ReadFile(dest)
+	if string(data) != "hello world" {
+		t.Errorf("content mismatch after Unmanage: %q", data)
+	}
+}
+
+func TestUnmanageIdempotent(t *testing.T) {
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	item := makeSourceItem(t, src, source.KindContext, "CLAUDE.md", "hello")
+	tgt := config.Target{Name: "claude", Path: tgtDir}
+
+	// Write a real file (already unmanaged)
+	dest := filepath.Join(tgtDir, "CLAUDE.md")
+	if err := os.WriteFile(dest, []byte("other content"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	// Should be a no-op
+	if err := sync.Unmanage(tgt, config.StrategyLink, item); err != nil {
+		t.Fatalf("Unmanage on already-unmanaged should not error: %v", err)
+	}
+	data, _ := os.ReadFile(dest)
+	if string(data) != "other content" {
+		t.Error("existing unmanaged content should be preserved")
+	}
+}
+
+func TestUnmanageAbsent(t *testing.T) {
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	item := makeSourceItem(t, src, source.KindContext, "CLAUDE.md", "hello")
+	tgt := config.Target{Name: "claude", Path: tgtDir}
+
+	if err := sync.Unmanage(tgt, config.StrategyLink, item); err != nil {
+		t.Fatalf("Unmanage on absent dest should not error: %v", err)
+	}
+	dest := filepath.Join(tgtDir, "CLAUDE.md")
+	data, _ := os.ReadFile(dest)
+	if string(data) != "hello" {
+		t.Errorf("content mismatch: %q", data)
+	}
+}

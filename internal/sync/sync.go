@@ -225,6 +225,27 @@ func Toggle(cfgPath, targetName string, item source.Item, disable bool) error {
 	return config.Save(cfgPath, cfg)
 }
 
+// Unmanage copies the source file to dest as a real file, replacing any
+// existing symlink or managed copy. If dest is already an unmanaged real
+// file, it is left untouched. Callers should call Toggle with disable=true
+// after Unmanage to prevent future syncs from reinstalling the item.
+func Unmanage(t config.Target, strategy string, it source.Item) error {
+	dest := destPath(t, it)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("create dest dir: %w", err)
+	}
+	st := statusOf(dest, it.Path, strategy)
+	if st == StatusUnmanaged {
+		return nil
+	}
+	if st != StatusAbsent {
+		if err := os.RemoveAll(dest); err != nil {
+			return fmt.Errorf("remove existing: %w", err)
+		}
+	}
+	return copyAny(it.Path, dest)
+}
+
 func destPath(t config.Target, it source.Item) string {
 	sub := t.SubdirFor(it.Kind)
 	if sub == "" {
