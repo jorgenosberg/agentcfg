@@ -74,6 +74,17 @@ func (t Target) ResolveStrategy(fallback string) string {
 	return StrategyLink
 }
 
+// SupportsKind reports whether this target supports the given item kind.
+// If Subdirs is nil, all kinds are supported. If Subdirs is explicitly set,
+// only kinds with a key present are supported.
+func (t Target) SupportsKind(kind string) bool {
+	if t.Subdirs == nil {
+		return true
+	}
+	_, ok := t.Subdirs[kind]
+	return ok
+}
+
 // SubdirFor returns the per-kind subdirectory under the target root.
 func (t Target) SubdirFor(kind string) string {
 	if t.Subdirs != nil {
