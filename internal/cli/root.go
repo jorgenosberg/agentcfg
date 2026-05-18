@@ -67,6 +67,8 @@ func NewRoot() *cobra.Command {
 		newStatusCmd(resolveCfg),
 		newInstallCmd(resolveCfg),
 		newUninstallCmd(resolveCfg),
+		newToggleCmd(resolveCfg, resolvePath),
+		newUnmanageCmd(resolveCfg, resolvePath),
 		newSyncCmd(resolveCfg),
 		newBackupCmd(resolveCfg),
 		newInitCmd(&configPath),
@@ -738,6 +740,134 @@ func newUninstallCmd(load func() (config.Config, error)) *cobra.Command {
 	return c
 }
 
+func newToggleCmd(load func() (config.Config, error), pathOf func() (string, error)) *cobra.Command {
+	var targetName string
+	var forceOn, forceOff bool
+	c := &cobra.Command{
+		Use:   "toggle <item>",
+		Short: "Enable or disable an item for one or more targets",
+		Long: "Toggle the disabled state of an item. Without --on or --off, the direction " +
+			"is inferred: if the item is disabled on all specified targets it is enabled; " +
+			"otherwise it is disabled. When targets have mixed state, use -t or --on/--off.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			cfgPath, err := pathOf()
+			if err != nil {
+				return err
+			}
+			items, err := source.Scan(cfg.Source)
+			if err != nil {
+				return err
+			}
+			item, ok := findItem(items, args[0])
+			if !ok {
+				return fmt.Errorf("item %q not found in %s", args[0], cfg.Source)
+			}
+			targets := selectTargets(cfg.Targets, targetName)
+			if len(targets) == 0 {
+				return fmt.Errorf("no matching targets")
+			}
+
+			disable := forceOff
+			if !forceOn && !forceOff {
+				allDisabled := true
+				for _, t := range targets {
+					if !t.IsDisabled(item) {
+						allDisabled = false
+						break
+					}
+				}
+				if allDisabled {
+					disable = false
+				} else {
+					anyDisabled := false
+					for _, t := range targets {
+						if t.IsDisabled(item) {
+							anyDisabled = true
+							break
+						}
+					}
+					if anyDisabled && len(targets) > 1 {
+						return fmt.Errorf("mixed disabled state across targets; use -t or --on/--off to be explicit")
+					}
+					disable = true
+				}
+			}
+
+			verb := "disabled"
+			if !disable {
+				verb = "enabled"
+			}
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			for _, t := range targets {
+				if err := sync.Toggle(cfgPath, t.Name, item, disable); err != nil {
+					fmt.Fprintf(tw, "%s\t%s\terror: %v\n", t.Name, item.Name, err)
+					continue
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\n", t.Name, item.Name, verb)
+			}
+			return tw.Flush()
+		},
+	}
+	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")
+	c.Flags().BoolVar(&forceOn, "on", false, "enable the item")
+	c.Flags().BoolVar(&forceOff, "off", false, "disable the item")
+	return c
+}
+
+func newUnmanageCmd(load func() (config.Config, error), pathOf func() (string, error)) *cobra.Command {
+	var targetName string
+	c := &cobra.Command{
+		Use:   "unmanage <item>",
+		Short: "Return an item to the target dir as a real file and stop managing it",
+		Long: "Removes the symlink (or managed copy) at the destination and writes a real " +
+			"copy of the file from source. The item remains in the agentcfg source tree " +
+			"and is added to the target's disabled list so future syncs leave it alone.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			cfgPath, err := pathOf()
+			if err != nil {
+				return err
+			}
+			items, err := source.Scan(cfg.Source)
+			if err != nil {
+				return err
+			}
+			item, ok := findItem(items, args[0])
+			if !ok {
+				return fmt.Errorf("item %q not found in %s", args[0], cfg.Source)
+			}
+			targets := selectTargets(cfg.Targets, targetName)
+			if len(targets) == 0 {
+				return fmt.Errorf("no matching targets")
+			}
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			for _, t := range targets {
+				if err := sync.Unmanage(t, t.ResolveStrategy(cfg.DefaultStrategy), item); err != nil {
+					fmt.Fprintf(tw, "%s\t%s\terror: %v\n", t.Name, item.Name, err)
+					continue
+				}
+				if err := sync.Toggle(cfgPath, t.Name, item, true); err != nil {
+					fmt.Fprintf(tw, "%s\t%s\tunmanaged (disable failed: %v)\n", t.Name, item.Name, err)
+					continue
+				}
+				fmt.Fprintf(tw, "%s\t%s\tunmanaged\n", t.Name, item.Name)
+			}
+			return tw.Flush()
+		},
+	}
+	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")
+	return c
+}
+
 func newInitCmd(pathFlag *string) *cobra.Command {
 	var sourcePath string
 	var noInteractive bool
@@ -807,8 +937,12 @@ func writeStatus(w io.Writer, entries []sync.Entry) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "TARGET\tKIND\tITEM\tSTATUS\tDEST")
 	for _, e := range entries {
+		label := string(e.Status)
+		if e.Status == sync.StatusDisabled {
+			label = "off"
+		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-			e.Target.Name, e.Item.Kind, e.Item.Name, e.Status, e.Dest)
+			e.Target.Name, e.Item.Kind, e.Item.Name, label, e.Dest)
 	}
 	return tw.Flush()
 }
