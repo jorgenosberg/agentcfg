@@ -16,11 +16,12 @@ import (
 type Status string
 
 const (
-	StatusLinked  Status = "linked"  // installed as symlink pointing at source
-	StatusCopied  Status = "copied"  // installed as a copy (snapshot)
-	StatusDrifted Status = "drifted" // copy exists but source has changed
-	StatusUnmanaged Status = "unmanaged" // present but not managed by agentcfg
-	StatusAbsent  Status = "absent"  // not installed
+	StatusLinked        Status = "linked"        // installed as symlink pointing at source
+	StatusCopied        Status = "copied"        // installed as a copy (snapshot)
+	StatusDrifted       Status = "drifted"       // copy exists but source has changed
+	StatusUnmanaged     Status = "unmanaged"     // present but not managed by agentcfg
+	StatusAbsent        Status = "absent"        // not installed
+	StatusNotApplicable Status = "n/a"           // target does not support this item kind
 )
 
 // Entry is the per-(target, item) state used for listing.
@@ -40,6 +41,15 @@ func Inspect(cfg config.Config, items []source.Item) []Entry {
 			if t.Excludes(it) {
 				continue
 			}
+			if !t.SupportsKind(it.Kind) {
+				out = append(out, Entry{
+					Target: t,
+					Item:   it,
+					Status: StatusNotApplicable,
+					Dest:   "",
+				})
+				continue
+			}
 			dest := destPath(t, it)
 			out = append(out, Entry{
 				Target: t,
@@ -47,6 +57,48 @@ func Inspect(cfg config.Config, items []source.Item) []Entry {
 				Status: statusOf(dest, it.Path, strategy),
 				Dest:   dest,
 			})
+		}
+	}
+	return out
+}
+
+// ScanTargetDirs scans each target's install directories and returns Entries
+// for items actually present there. Items not matching any source item are
+// returned with StatusUnmanaged.
+func ScanTargetDirs(cfg config.Config, sourceItems []source.Item) []Entry {
+	srcMap := make(map[string]source.Item, len(sourceItems))
+	for _, it := range sourceItems {
+		srcMap[it.Kind+"/"+it.Name] = it
+	}
+	var out []Entry
+	for _, t := range cfg.Targets {
+		strategy := t.ResolveStrategy(cfg.DefaultStrategy)
+		subdirs := source.Subdirs{
+			source.KindSkill:   t.SubdirFor(source.KindSkill),
+			source.KindHook:    t.SubdirFor(source.KindHook),
+			source.KindContext: t.SubdirFor(source.KindContext),
+		}
+		items, err := source.ScanWith(t.Path, subdirs)
+		if err != nil {
+			continue
+		}
+		for _, it := range items {
+			key := it.Kind + "/" + it.Name
+			if srcItem, ok := srcMap[key]; ok {
+				out = append(out, Entry{
+					Target: t,
+					Item:   it,
+					Status: statusOf(it.Path, srcItem.Path, strategy),
+					Dest:   it.Path,
+				})
+			} else {
+				out = append(out, Entry{
+					Target: t,
+					Item:   it,
+					Status: StatusUnmanaged,
+					Dest:   it.Path,
+				})
+			}
 		}
 	}
 	return out
