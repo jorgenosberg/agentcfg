@@ -178,6 +178,53 @@ func Adopt(t config.Target, strategy string, it source.Item) (Status, error) {
 	return Install(t, strategy, it)
 }
 
+// Toggle adds (disable=true) or removes (disable=false) item.Name from the
+// named target's Disabled list, then installs or uninstalls accordingly.
+// It reloads the config from cfgPath before modifying to avoid stale-write
+// races when called in a loop over multiple targets.
+func Toggle(cfgPath, targetName string, item source.Item, disable bool) error {
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	idx := -1
+	for i, t := range cfg.Targets {
+		if t.Name == targetName {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("target %q not found in config", targetName)
+	}
+	t := &cfg.Targets[idx]
+	strategy := t.ResolveStrategy(cfg.DefaultStrategy)
+
+	if disable {
+		if t.IsDisabled(item) {
+			return nil // already disabled — idempotent
+		}
+		t.Disabled = append(t.Disabled, item.Name)
+		if err := Uninstall(*t, strategy, item); err != nil {
+			return fmt.Errorf("uninstall %s from %s: %w", item.Name, t.Name, err)
+		}
+	} else {
+		kept := make([]string, 0, len(t.Disabled))
+		for _, d := range t.Disabled {
+			if d != item.Name && d != item.Kind+"/"+item.Name {
+				kept = append(kept, d)
+			}
+		}
+		t.Disabled = kept
+		if !t.Excludes(item) && t.SupportsKind(item.Kind) {
+			if _, err := Install(*t, strategy, item); err != nil {
+				return fmt.Errorf("install %s to %s: %w", item.Name, t.Name, err)
+			}
+		}
+	}
+	return config.Save(cfgPath, cfg)
+}
+
 func destPath(t config.Target, it source.Item) string {
 	sub := t.SubdirFor(it.Kind)
 	if sub == "" {
