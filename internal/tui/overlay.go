@@ -263,39 +263,44 @@ func (o *helpOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 
 func (o *helpOverlay) View(w, h int) string {
 	type binding struct{ key, desc string }
-	global := []binding{
-		{"j / k / ↑↓", "move cursor"},
-		{"g / home", "go to top"},
-		{"G / end", "go to bottom"},
+
+	navigation := []binding{
+		{"j / k / ↑ / ↓", "move cursor"},
+		{"g / home", "jump to top"},
+		{"G / end", "jump to bottom"},
 		{"ctrl+u / pgup", "half-page up"},
 		{"ctrl+d / pgdown", "half-page down"},
-		{"1 / 2 / 3 / tab", "switch view"},
-		{"r", "rescan"},
-		{"I", "run init wizard"},
-		{"D", "discover agents"},
+		{"tab / shift+tab", "cycle views (Source → Agents → Projects)"},
+		{"r", "rescan source and targets"},
 		{"? / esc", "close this help"},
 		{"q", "quit"},
 	}
-	sourceOnly := []binding{
-		{"enter / i", "install item to all targets"},
-		{"A", "adopt unmanaged item (replace existing file with managed link/copy)"},
-		{"x", "uninstall item from all targets"},
-		{"T", "toggle item disabled/enabled for active target (or all)"},
-		{"u", "unmanage item — place real copy in target dir, stop syncing"},
-		{"S", "sync all (install absent + update drifted)"},
-		{"f / ← / →", "cycle kind filter (all / skills / hooks / context)"},
-		{"t", "cycle target filter"},
-		{"n", "add target"},
-		{"d", "remove filtered target from config"},
+
+	actions := []binding{
+		{"Enter", "open context palette for item under cursor"},
+		{"1 – 9", "trigger nth palette action directly (no palette shown)"},
+		{"", "destructive actions always show a confirm prompt"},
 	}
-	agentsOnly := []binding{
-		{"x", "remove item from agent folder"},
-		{"t", "cycle agent filter"},
-		{"n", "add target"},
+
+	globalCmds := []binding{
+		{paletteHintKey(), "open global command palette"},
+		{"", "palette contains: sync all, rescan, add/remove target,"},
+		{"", "discover agents, add project, init wizard"},
 	}
-	projectsOnly := []binding{
-		{"n", "add project"},
-		{"d", "remove project"},
+
+	filters := []binding{
+		{"f", "focus kind filter row (Source view)"},
+		{"t", "focus target filter row (Source / Agents view)"},
+		{"← →", "cycle options in focused filter row"},
+		{"f / t", "switch between filter rows when one is focused"},
+		{"esc / j / k", "exit filter focus, return to list navigation"},
+	}
+
+	overlayKeys := []binding{
+		{"esc", "close overlay / cancel"},
+		{"y / n", "confirm or cancel a destructive action"},
+		{"tab", "move between input fields in forms"},
+		{"enter", "submit current field or form"},
 	}
 
 	var sb strings.Builder
@@ -303,16 +308,22 @@ func (o *helpOverlay) View(w, h int) string {
 		sb.WriteString(tabActiveStyle.Render(title))
 		sb.WriteByte('\n')
 		for _, b := range bindings {
-			fmt.Fprintf(&sb, "  %-22s  %s\n", dimStyle.Render(b.key), b.desc)
+			if b.key == "" {
+				fmt.Fprintf(&sb, "  %s\n", dimStyle.Render("  "+b.desc))
+			} else {
+				fmt.Fprintf(&sb, "  %-22s  %s\n", dimStyle.Render(b.key), b.desc)
+			}
 		}
 		sb.WriteByte('\n')
 	}
-	writeSection("Global", global)
-	writeSection("[1] Source view", sourceOnly)
-	writeSection("[2] Agents view", agentsOnly)
-	writeSection("[3] Projects view", projectsOnly)
 
-	return renderOverlayBox(w, h, strings.TrimRight(sb.String(), "\n"), "Keybindings", 56)
+	writeSection("Navigation", navigation)
+	writeSection("Item actions", actions)
+	writeSection("Global commands", globalCmds)
+	writeSection("Filters", filters)
+	writeSection("Overlays & forms", overlayKeys)
+
+	return renderOverlayBox(w, h, strings.TrimRight(sb.String(), "\n"), "Keybindings", 60)
 }
 
 // ── confirmOverlay ────────────────────────────────────────────────────────────
