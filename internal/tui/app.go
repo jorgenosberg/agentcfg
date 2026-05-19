@@ -306,25 +306,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil // no-op in main navigation
 		case "?":
 			m.overlay = newHelpOverlay()
-		case "1":
-			if m.mode != viewAgentcfg {
-				m.mode = viewAgentcfg
-				m.cursor, m.offset = 0, 0
-				m.status = "source view"
-			}
-		case "2":
-			if m.mode != viewAgentFolders {
-				m.mode = viewAgentFolders
-				m.cursor, m.offset = 0, 0
-				m.status = "agents view"
-			}
-		case "3":
-			if m.mode != viewProjects {
-				m.mode = viewProjects
-				m.cursor, m.offset = 0, 0
-				m.status = "projects view"
-			}
-		case "tab", "p":
+		case "tab":
 			switch m.mode {
 			case viewAgentcfg:
 				m.mode = viewAgentFolders
@@ -376,7 +358,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(actions) > 0 {
 				m.overlay = newPaletteOverlay(m.currentItemTitle(), actions)
 			}
-		case "4", "5", "6", "7", "8", "9":
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			n := int(msg.String()[0] - '0')
 			actions := m.buildItemActions()
 			if n <= len(actions) {
@@ -443,248 +425,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor = max(0, n-1)
 			}
 			m = m.adjustOffset()
-		case "I":
-			o, cmd := newInitWizardOverlay(m.cfgPath)
-			m.overlay = o
-			return m, cmd
-		case "D":
-			m.overlay = newDiscoverOverlay(m.cfgPath, m.cfg)
-		case "n":
-			if m.mode == viewAgentcfg || m.mode == viewAgentFolders {
-				o, cmd := newAddTargetOverlay(m.cfgPath, m.cfg)
-				m.overlay = o
-				return m, cmd
-			}
-			o, cmd := newAddProjectOverlay(m.cfgPath, m.cfg)
-			m.overlay = o
-			return m, cmd
-		case "d":
-			if m.mode == viewAgentcfg {
-				if m.sourceTarget == "" {
-					m.status = "use t to select a target first"
-					break
-				}
-				targetName := m.sourceTarget
-				cfgPath, cfg := m.cfgPath, m.cfg
-				m.overlay = newConfirmOverlay(
-					fmt.Sprintf("Remove target %q?", targetName),
-					"Removes from config only. Installed items are not uninstalled.",
-					func() error {
-						out := make([]config.Target, 0, len(cfg.Targets))
-						for _, t := range cfg.Targets {
-							if t.Name != targetName {
-								out = append(out, t)
-							}
-						}
-						cfg.Targets = out
-						return config.Save(cfgPath, cfg)
-					},
-				)
-			} else if m.mode == viewProjects {
-				if m.cursor < len(m.projectItems) {
-					projName := m.projectItems[m.cursor].Project
-					cfgPath, cfg := m.cfgPath, m.cfg
-					m.overlay = newConfirmOverlay(
-						fmt.Sprintf("Remove project %q?", projName),
-						"Removes from config only. No files are deleted.",
-						func() error {
-							out := make([]config.Project, 0, len(cfg.Projects))
-							for _, p := range cfg.Projects {
-								if p.Name != projName {
-									out = append(out, p)
-								}
-							}
-							cfg.Projects = out
-							return config.Save(cfgPath, cfg)
-						},
-					)
-				}
-			}
-		case "x":
-			if m.mode == viewAgentcfg {
-				grouped := m.groupedItems()
-				if m.cursor < len(grouped) {
-					g := grouped[m.cursor]
-					var ok, fail int
-					for _, e := range g.Entries {
-						if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-							fail++
-						} else {
-							ok++
-						}
-					}
-					m.entries = sync.Inspect(m.cfg, m.items)
-					m.targetEntries = sync.ScanTargetDirs(m.cfg, m.items)
-					if fail > 0 {
-						m.status = fmt.Sprintf("removed %d, %d errors", ok, fail)
-					} else {
-						m.status = fmt.Sprintf("removed %s (%d targets)", g.Item.Name, ok)
-					}
-				}
-			} else if m.mode == viewAgentFolders {
-				entries := m.filteredTargetEntries()
-				if m.cursor < len(entries) {
-					e := entries[m.cursor]
-					dest := e.Dest
-					if e.Status == sync.StatusUnmanaged {
-						m.overlay = newConfirmOverlay(
-							fmt.Sprintf("Delete %q from %s?", e.Item.Name, e.Target.Name),
-							fmt.Sprintf("Not managed by agentcfg. Permanently deletes:\n%s", dest),
-							func() error { return os.RemoveAll(dest) },
-						)
-					} else {
-						if err := os.RemoveAll(dest); err != nil {
-							m.status = "remove: " + err.Error()
-						} else {
-							m.entries = sync.Inspect(m.cfg, m.items)
-							m.targetEntries = sync.ScanTargetDirs(m.cfg, m.items)
-							if n := m.currentLen(); m.cursor >= n {
-								m.cursor = max(0, n-1)
-							}
-							m.status = fmt.Sprintf("removed %s from %s", e.Item.Name, e.Target.Name)
-						}
-					}
-				}
-			}
-		case "A":
-			if m.mode == viewAgentcfg {
-				grouped := m.groupedItems()
-				if m.cursor < len(grouped) {
-					g := grouped[m.cursor]
-					var ok, fail int
-					for _, e := range g.Entries {
-						if e.Status != sync.StatusUnmanaged {
-							continue
-						}
-						if _, err := sync.Adopt(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-							fail++
-						} else {
-							ok++
-						}
-					}
-					m.entries = sync.Inspect(m.cfg, m.items)
-					m.targetEntries = sync.ScanTargetDirs(m.cfg, m.items)
-					if fail > 0 {
-						m.status = fmt.Sprintf("adopted %d, %d errors", ok, fail)
-					} else {
-						m.status = fmt.Sprintf("adopted %s (%d targets)", g.Item.Name, ok)
-					}
-				}
-			}
-		case "T":
-			if m.mode == viewAgentcfg {
-				grouped := m.groupedItems()
-				if m.cursor >= len(grouped) {
-					break
-				}
-				g := grouped[m.cursor]
-				item := g.Item
-
-				targets := m.cfg.Targets
-				if m.sourceTarget != "" {
-					for _, t := range m.cfg.Targets {
-						if t.Name == m.sourceTarget {
-							targets = []config.Target{t}
-							break
-						}
-					}
-				}
-
-				allDisabled := true
-				for _, t := range targets {
-					if !t.IsDisabled(item) {
-						allDisabled = false
-						break
-					}
-				}
-				disable := !allDisabled
-
-				cfgPath := m.cfgPath
-				return m, func() tea.Msg {
-					for _, t := range targets {
-						if err := sync.Toggle(cfgPath, t.Name, item, disable); err != nil {
-							return cfgReloadMsg{err: err}
-						}
-					}
-					return cfgReloadMsg{err: nil}
-				}
-			}
-		case "u":
-			if m.mode == viewAgentcfg {
-				grouped := m.groupedItems()
-				if m.cursor >= len(grouped) {
-					break
-				}
-				g := grouped[m.cursor]
-				item := g.Item
-
-				targets := m.cfg.Targets
-				if m.sourceTarget != "" {
-					for _, t := range m.cfg.Targets {
-						if t.Name == m.sourceTarget {
-							targets = []config.Target{t}
-							break
-						}
-					}
-				}
-
-				targetCount := len(targets)
-				detail := fmt.Sprintf("Place a real copy in %d target dir(s) and stop managing. File stays in source.", targetCount)
-				if targetCount == 1 {
-					detail = fmt.Sprintf("Place a real copy in %s and stop managing. File stays in source.", targets[0].Path)
-				}
-
-				cfgPath, cfg := m.cfgPath, m.cfg
-				m.overlay = newConfirmOverlay(
-					fmt.Sprintf("Unmanage %q?", item.Name),
-					detail,
-					func() error {
-						for _, t := range targets {
-							if err := sync.Unmanage(t, t.ResolveStrategy(cfg.DefaultStrategy), item); err != nil {
-								return err
-							}
-							if err := sync.Toggle(cfgPath, t.Name, item, true); err != nil {
-								return err
-							}
-						}
-						return nil
-					},
-				)
-			}
-		case "S":
-			if m.mode == viewAgentcfg {
-				lockPath, err := lock.DefaultPath()
-				if err != nil {
-					m.status = "sync: " + err.Error()
-					break
-				}
-				lck, err := lock.Load(lockPath)
-				if err != nil {
-					m.status = "sync: " + err.Error()
-					break
-				}
-				results := sync.Sync(m.cfg, m.items, lck, false, false)
-				var installed, updated int
-				for _, r := range results {
-					if r.Err == nil {
-						if r.OldStatus == sync.StatusAbsent {
-							installed++
-						} else {
-							updated++
-						}
-					}
-				}
-				if len(results) > 0 {
-					_ = lock.Save(lockPath, lck)
-				}
-				m.entries = sync.Inspect(m.cfg, m.items)
-				m.targetEntries = sync.ScanTargetDirs(m.cfg, m.items)
-				if len(results) == 0 {
-					m.status = "everything up to date"
-				} else {
-					m.status = fmt.Sprintf("sync: %d installed, %d updated", installed, updated)
-				}
-			}
 		}
 	default:
 		// Forward all other messages (e.g. cursor blink ticks) to active overlay.
@@ -785,9 +525,9 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 		return tabStyle.Render(label)
 	}
 	sep := borderStyle.Render(" · ")
-	tabs := tab("[1] Source", m.mode == viewAgentcfg) + sep +
-		tab("[2] Agents", m.mode == viewAgentFolders) + sep +
-		tab("[3] Projects", m.mode == viewProjects)
+	tabs := tab("Source", m.mode == viewAgentcfg) + sep +
+		tab("Agents", m.mode == viewAgentFolders) + sep +
+		tab("Projects", m.mode == viewProjects)
 	tabsVis := lipgloss.Width(tabs)
 	padW := max(0, leftIW-tabsVis-3)
 	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+"─┐")
