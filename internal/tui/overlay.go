@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/jorgenosberg/agentcfg/internal/agent"
 	"github.com/jorgenosberg/agentcfg/internal/catalog"
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/icons"
@@ -249,12 +250,36 @@ func (o *confirmOverlay) View(w, h int) string {
 // ── addTargetOverlay ──────────────────────────────────────────────────────────
 
 type addTargetOverlay struct {
-	cfgPath string
-	cfg     config.Config
-	name    textinput.Model
-	path    textinput.Model
-	focused int
-	errMsg  string
+	cfgPath   string
+	cfg       config.Config
+	name      textinput.Model
+	path      textinput.Model
+	agentType string // selected agent type; "" = none
+	focused   int    // 0=name, 1=path, 2=agentType
+	errMsg    string
+}
+
+func prevAgent(current string) string {
+	names := append([]string{""}, agent.Names()...)
+	for i, n := range names {
+		if n == current {
+			if i == 0 {
+				return names[len(names)-1]
+			}
+			return names[i-1]
+		}
+	}
+	return ""
+}
+
+func nextAgent(current string) string {
+	names := append([]string{""}, agent.Names()...)
+	for i, n := range names {
+		if n == current {
+			return names[(i+1)%len(names)]
+		}
+	}
+	return names[0]
 }
 
 func newAddTargetOverlay(cfgPath string, cfg config.Config) (*addTargetOverlay, tea.Cmd) {
@@ -272,10 +297,6 @@ func newAddTargetOverlay(cfgPath string, cfg config.Config) (*addTargetOverlay, 
 	return &addTargetOverlay{cfgPath: cfgPath, cfg: cfg, name: name, path: path}, cmd
 }
 
-func (o *addTargetOverlay) inputs() []*textinput.Model {
-	return []*textinput.Model{&o.name, &o.path}
-}
-
 func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -285,24 +306,39 @@ func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 		case "esc":
 			return nil, nil
 		case "tab", "down":
-			inp := o.inputs()
-			inp[o.focused].Blur()
-			o.focused = (o.focused + 1) % len(inp)
-			return o, inp[o.focused].Focus()
+			o.blurCurrent()
+			o.focused = (o.focused + 1) % 3
+			return o, o.focusCurrent()
 		case "shift+tab", "up":
-			inp := o.inputs()
-			inp[o.focused].Blur()
-			o.focused = (o.focused - 1 + len(inp)) % len(inp)
-			return o, inp[o.focused].Focus()
+			o.blurCurrent()
+			o.focused = (o.focused - 1 + 3) % 3
+			return o, o.focusCurrent()
+		case "left":
+			if o.focused == 2 {
+				o.agentType = prevAgent(o.agentType)
+				return o, nil
+			}
+		case "right":
+			if o.focused == 2 {
+				o.agentType = nextAgent(o.agentType)
+				return o, nil
+			}
 		case "enter":
 			if o.focused == 0 {
-				o.name.Blur()
+				o.blurCurrent()
 				o.focused = 1
-				return o, o.path.Focus()
+				return o, o.focusCurrent()
 			}
-			name, rawPath := strings.TrimSpace(o.name.Value()), strings.TrimSpace(o.path.Value())
+			if o.focused == 1 {
+				o.blurCurrent()
+				o.focused = 2
+				return o, o.focusCurrent()
+			}
+			// focused == 2: submit
+			name := strings.TrimSpace(o.name.Value())
+			rawPath := strings.TrimSpace(o.path.Value())
 			if name == "" || rawPath == "" {
-				o.errMsg = "both fields required"
+				o.errMsg = "name and path are required"
 				return o, nil
 			}
 			for _, t := range o.cfg.Targets {
@@ -316,14 +352,15 @@ func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 				abs = rawPath
 			}
 			cfg := o.cfg
-			cfg.Targets = append(cfg.Targets, config.Target{Name: name, Path: abs})
+			t := catalog.TargetFor(o.agentType, abs, name)
+			cfg.Targets = append(cfg.Targets, t)
 			cfgPath := o.cfgPath
 			return nil, func() tea.Msg { return cfgReloadMsg{err: config.Save(cfgPath, cfg)} }
 		}
 		var cmd tea.Cmd
 		if o.focused == 0 {
 			o.name, cmd = o.name.Update(msg)
-		} else {
+		} else if o.focused == 1 {
 			o.path, cmd = o.path.Update(msg)
 		}
 		return o, cmd
@@ -331,29 +368,75 @@ func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 		var cmd tea.Cmd
 		if o.focused == 0 {
 			o.name, cmd = o.name.Update(msg)
-		} else {
+		} else if o.focused == 1 {
 			o.path, cmd = o.path.Update(msg)
 		}
 		return o, cmd
 	}
 }
 
+func (o *addTargetOverlay) blurCurrent() {
+	switch o.focused {
+	case 0:
+		o.name.Blur()
+	case 1:
+		o.path.Blur()
+	}
+}
+
+func (o *addTargetOverlay) focusCurrent() tea.Cmd {
+	switch o.focused {
+	case 0:
+		return o.name.Focus()
+	case 1:
+		return o.path.Focus()
+	}
+	return nil
+}
+
 func (o *addTargetOverlay) View(w, h int) string {
 	var sb strings.Builder
-	for i, inp := range []textinput.Model{o.name, o.path} {
-		if i == o.focused {
-			sb.WriteString(cursorStyle.Render("▶ "))
-		} else {
-			sb.WriteString("  ")
-		}
-		sb.WriteString(inp.View())
-		sb.WriteString("\n\n")
+
+	// Name field
+	if o.focused == 0 {
+		sb.WriteString(cursorStyle.Render("▶ "))
+	} else {
+		sb.WriteString("  ")
 	}
+	sb.WriteString(o.name.View())
+	sb.WriteString("\n\n")
+
+	// Path field
+	if o.focused == 1 {
+		sb.WriteString(cursorStyle.Render("▶ "))
+	} else {
+		sb.WriteString("  ")
+	}
+	sb.WriteString(o.path.View())
+	sb.WriteString("\n\n")
+
+	// Agent type field
+	if o.focused == 2 {
+		sb.WriteString(cursorStyle.Render("▶ "))
+	} else {
+		sb.WriteString("  ")
+	}
+	sb.WriteString(dimStyle.Render("Agent: "))
+	if o.agentType == "" {
+		sb.WriteString(dimStyle.Render("(none)"))
+	} else {
+		sb.WriteString(o.agentType)
+	}
+	if o.focused == 2 {
+		sb.WriteString(dimStyle.Render(" ◀ ▶"))
+	}
+	sb.WriteString("\n\n")
+
 	if o.errMsg != "" {
 		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render("  "+o.errMsg) + "\n\n")
 	}
-	sb.WriteString(dimStyle.Render("tab next field · enter submit · esc cancel"))
-	return renderOverlayBox(w, h, sb.String(), "Add target", 54)
+	sb.WriteString(dimStyle.Render("tab next field · ←/→ cycle agent · enter submit · esc cancel"))
+	return renderOverlayBox(w, h, sb.String(), "Add target", 56)
 }
 
 // ── addProjectOverlay ─────────────────────────────────────────────────────────
