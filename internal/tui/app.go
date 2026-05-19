@@ -532,25 +532,33 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 	padW := max(0, leftIW-tabsVis-3)
 	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+"─┐")
 
-	buildTargetFilterContent := func(current string, focused bool) string {
+	buildTargetFilterContent := func(current string, focused, dimmed bool) string {
+		activePill := tabActiveStyle
+		inactivePill := tabStyle
+		if dimmed {
+			activePill = dimStyle
+			inactivePill = dimStyle
+		}
 		parts := make([]string, 0, len(m.cfg.Targets)+1)
 		if current == "" {
-			parts = append(parts, tabActiveStyle.Render("[all]"))
+			parts = append(parts, activePill.Render("[all]"))
 		} else {
-			parts = append(parts, tabStyle.Render("all"))
+			parts = append(parts, inactivePill.Render("all"))
 		}
 		for _, t := range m.cfg.Targets {
 			if t.Name == current {
-				parts = append(parts, tabActiveStyle.Render("["+t.Name+"]"))
+				parts = append(parts, activePill.Render("["+t.Name+"]"))
 			} else {
-				parts = append(parts, tabStyle.Render(t.Name))
+				parts = append(parts, inactivePill.Render(t.Name))
 			}
 		}
+		prefix := "  "
 		hint := ""
 		if focused {
-			hint = dimStyle.Render("  ← →")
+			prefix = activeBorderStyle.Render("▌ ")
+			hint = activeBorderStyle.Render("  ← →")
 		}
-		return "  " + strings.Join(parts, dimStyle.Render(" · ")) + hint
+		return prefix + strings.Join(parts, dimStyle.Render(" · ")) + hint
 	}
 
 	sepRow := aR("│") + aR(strings.Repeat("─", leftIW)) + aR("│")
@@ -574,21 +582,33 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 			{source.KindHook, "hooks"},
 			{source.KindContext, "context"},
 		}
+		kindFocused := m.filterFocus == focusKind
+		kindDimmed := m.filterFocus == focusTarget
 		parts := make([]string, len(filters))
 		for i, f := range filters {
 			if f.kind == m.sourceKind {
-				parts[i] = tabActiveStyle.Render("[" + f.label + "]")
+				if kindDimmed {
+					parts[i] = dimStyle.Render("[" + f.label + "]")
+				} else {
+					parts[i] = tabActiveStyle.Render("[" + f.label + "]")
+				}
 			} else {
-				parts[i] = tabStyle.Render(f.label)
+				if kindDimmed {
+					parts[i] = dimStyle.Render(f.label)
+				} else {
+					parts[i] = tabStyle.Render(f.label)
+				}
 			}
 		}
+		kindPrefix := "  "
 		kindFocusHint := ""
-		if m.filterFocus == focusKind {
-			kindFocusHint = dimStyle.Render("  ← →")
+		if kindFocused {
+			kindPrefix = activeBorderStyle.Render("▌ ")
+			kindFocusHint = activeBorderStyle.Render("  ← →")
 		}
-		kindFilterContent := "  " + strings.Join(parts, dimStyle.Render(" · ")) + kindFocusHint
+		kindFilterContent := kindPrefix + strings.Join(parts, dimStyle.Render(" · ")) + kindFocusHint
 		kindFilterRow := aR("│") + padToWidth(kindFilterContent, leftIW) + aR("│")
-		targetFilterRow := aR("│") + padToWidth(buildTargetFilterContent(m.sourceTarget, m.filterFocus == focusTarget), leftIW) + aR("│")
+		targetFilterRow := aR("│") + padToWidth(buildTargetFilterContent(m.sourceTarget, m.filterFocus == focusTarget, kindFocused), leftIW) + aR("│")
 		badgesHdr := m.renderBadgeHeader(leftIW)
 		badgesHdrVis := lipgloss.Width(badgesHdr)
 		nameHdrMax := max(4, leftIW-2-7-2-2-badgesHdrVis)
@@ -604,7 +624,7 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 		return lines
 
 	case viewAgentFolders:
-		targetFilterRow := aR("│") + padToWidth(buildTargetFilterContent(m.targetFilter, m.filterFocus == focusTarget), leftIW) + aR("│")
+		targetFilterRow := aR("│") + padToWidth(buildTargetFilterContent(m.targetFilter, m.filterFocus == focusTarget, false), leftIW) + aR("│")
 		headerContent := "  " + fmt.Sprintf("%-8s  %-7s  %-24s  %s", "AGENT", "TYPE", "NAME", "STATUS")
 		headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
 		contentRows := m.buildContentRows(max(0, lh-2), leftIW)
