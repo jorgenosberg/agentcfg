@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
@@ -29,6 +30,12 @@ const (
 	viewAgentcfg    viewMode = iota // items managed in agentcfg source
 	viewAgentFolders                 // items actually in agent/target directories
 	viewProjects                     // project-local agent configuration files
+)
+
+const (
+	focusNone   = 0
+	focusKind   = 1
+	focusTarget = 2
 )
 
 func Run(cfgPath string, cfg config.Config) error {
@@ -72,6 +79,7 @@ type model struct {
 	sourceTarget  string // target filter for agentcfg view: "" = all
 	targetFilter  string // target filter for agent folders view: "" = all
 	overlay       overlayModel
+	filterFocus   int // focusNone, focusKind, or focusTarget
 }
 
 type groupedItem struct {
@@ -288,8 +296,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		switch msg.String() {
-		case "q", "ctrl+c", "esc":
+		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "esc":
+			if m.filterFocus != focusNone {
+				m.filterFocus = focusNone
+				return m, nil
+			}
+			return m, nil // no-op in main navigation
 		case "?":
 			m.overlay = newHelpOverlay()
 		case "1":
@@ -326,11 +340,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				viewProjects:    "projects view",
 			}[m.mode]
 		case "j", "down":
+			m.filterFocus = focusNone
 			if m.cursor < m.currentLen()-1 {
 				m.cursor++
 				m = m.adjustOffset()
 			}
 		case "k", "up":
+			m.filterFocus = focusNone
 			if m.cursor > 0 {
 				m.cursor--
 				m = m.adjustOffset()
@@ -373,59 +389,47 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
-		case "f", "right":
+		case "f":
 			if m.mode == viewAgentcfg {
-				switch m.sourceKind {
-				case "":
-					m.sourceKind = source.KindSkill
-				case source.KindSkill:
-					m.sourceKind = source.KindHook
-				case source.KindHook:
-					m.sourceKind = source.KindContext
-				default:
-					m.sourceKind = ""
-				}
-				m.cursor, m.offset = 0, 0
+				m.filterFocus = focusKind
 			}
-		case "left":
-			if m.mode == viewAgentcfg {
-				switch m.sourceKind {
-				case "":
-					m.sourceKind = source.KindContext
-				case source.KindContext:
-					m.sourceKind = source.KindHook
-				case source.KindHook:
-					m.sourceKind = source.KindSkill
-				case source.KindSkill:
-					m.sourceKind = ""
-				}
-				m.cursor, m.offset = 0, 0
-			}
+			return m, nil
 		case "t":
-			cycleTarget := func(current string, targets []config.Target) string {
-				if current == "" {
-					if len(targets) > 0 {
-						return targets[0].Name
-					}
-					return ""
-				}
-				for i, t := range targets {
-					if t.Name == current {
-						if i+1 < len(targets) {
-							return targets[i+1].Name
-						}
-						return ""
-					}
-				}
-				return ""
+			if m.mode == viewAgentcfg || m.mode == viewAgentFolders {
+				m.filterFocus = focusTarget
 			}
-			switch m.mode {
-			case viewAgentcfg:
-				m.sourceTarget = cycleTarget(m.sourceTarget, m.cfg.Targets)
+			return m, nil
+		case "left":
+			if m.filterFocus == focusKind {
+				m.sourceKind = prevKind(m.sourceKind)
 				m.cursor, m.offset = 0, 0
-			case viewAgentFolders:
-				m.targetFilter = cycleTarget(m.targetFilter, m.cfg.Targets)
+				return m, nil
+			}
+			if m.filterFocus == focusTarget {
+				switch m.mode {
+				case viewAgentcfg:
+					m.sourceTarget = prevTarget(m.sourceTarget, m.cfg.Targets)
+				case viewAgentFolders:
+					m.targetFilter = prevTarget(m.targetFilter, m.cfg.Targets)
+				}
 				m.cursor, m.offset = 0, 0
+				return m, nil
+			}
+		case "right":
+			if m.filterFocus == focusKind {
+				m.sourceKind = nextKind(m.sourceKind)
+				m.cursor, m.offset = 0, 0
+				return m, nil
+			}
+			if m.filterFocus == focusTarget {
+				switch m.mode {
+				case viewAgentcfg:
+					m.sourceTarget = nextTarget(m.sourceTarget, m.cfg.Targets)
+				case viewAgentFolders:
+					m.targetFilter = nextTarget(m.targetFilter, m.cfg.Targets)
+				}
+				m.cursor, m.offset = 0, 0
+				return m, nil
 			}
 		case "r":
 			items, err := source.Scan(m.cfg.Source)
@@ -791,7 +795,7 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 	padW := max(0, leftIW-tabsVis-3)
 	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+"─┐")
 
-	buildTargetFilterRow := func(current string) string {
+	buildTargetFilterContent := func(current string, focused bool) string {
 		parts := make([]string, 0, len(m.cfg.Targets)+1)
 		if current == "" {
 			parts = append(parts, tabActiveStyle.Render("[all]"))
@@ -805,8 +809,11 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 				parts = append(parts, tabStyle.Render(t.Name))
 			}
 		}
-		content := "  " + strings.Join(parts, dimStyle.Render(" · "))
-		return aR("│") + padToWidth(content, leftIW) + aR("│")
+		hint := ""
+		if focused {
+			hint = dimStyle.Render("  ← →")
+		}
+		return "  " + strings.Join(parts, dimStyle.Render(" · ")) + hint
 	}
 
 	sepRow := aR("│") + aR(strings.Repeat("─", leftIW)) + aR("│")
@@ -838,9 +845,13 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 				parts[i] = tabStyle.Render(f.label)
 			}
 		}
-		kindFilterContent := "  " + strings.Join(parts, dimStyle.Render(" · "))
+		kindFocusHint := ""
+		if m.filterFocus == focusKind {
+			kindFocusHint = dimStyle.Render("  ← →")
+		}
+		kindFilterContent := "  " + strings.Join(parts, dimStyle.Render(" · ")) + kindFocusHint
 		kindFilterRow := aR("│") + padToWidth(kindFilterContent, leftIW) + aR("│")
-		targetFilterRow := buildTargetFilterRow(m.sourceTarget)
+		targetFilterRow := aR("│") + padToWidth(buildTargetFilterContent(m.sourceTarget, m.filterFocus == focusTarget), leftIW) + aR("│")
 		badgesHdr := m.renderBadgeHeader(leftIW)
 		badgesHdrVis := lipgloss.Width(badgesHdr)
 		nameHdrMax := max(4, leftIW-2-7-2-2-badgesHdrVis)
@@ -856,7 +867,7 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 		return lines
 
 	case viewAgentFolders:
-		targetFilterRow := buildTargetFilterRow(m.targetFilter)
+		targetFilterRow := aR("│") + padToWidth(buildTargetFilterContent(m.targetFilter, m.filterFocus == focusTarget), leftIW) + aR("│")
 		headerContent := "  " + fmt.Sprintf("%-8s  %-7s  %-24s  %s", "AGENT", "TYPE", "NAME", "STATUS")
 		headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
 		contentRows := m.buildContentRows(max(0, lh-2), leftIW)
@@ -1284,23 +1295,28 @@ func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string 
 	return result
 }
 
+func paletteHintKey() string {
+	if runtime.GOOS == "darwin" {
+		return "⌘P"
+	}
+	return "Ctrl+P"
+}
+
 func (m model) renderFooter(w int) string {
-	status := m.status
 	var left string
-	if status == "ready" {
+	if m.status == "ready" {
 		left = dimStyle.Render(" lazyagentcfg " + version.Version)
 	} else {
-		left = statusStyle.Render(" " + status)
+		left = statusStyle.Render(" " + m.status)
 	}
+
 	var right string
-	switch m.mode {
-	case viewAgentcfg:
-		right = dimStyle.Render("i install  A adopt  x remove  T toggle  u unmanage  S sync  t target  n/d target  ←/→ filter  r rescan  ? help  q quit ")
-	case viewAgentFolders:
-		right = dimStyle.Render("x remove  t agent  n target  r rescan  ? help  q quit ")
-	default: // viewProjects
-		right = dimStyle.Render("n/d project  r rescan  ? help  q quit ")
+	if m.filterFocus != focusNone {
+		right = dimStyle.Render("← → cycle · f/t switch filter · Esc back to list ")
+	} else {
+		right = dimStyle.Render("↑↓ navigate · Enter actions · " + paletteHintKey() + " commands · ? help · q quit ")
 	}
+
 	lv := lipgloss.Width(left)
 	rv := lipgloss.Width(right)
 	gap := max(1, w-lv-rv)
