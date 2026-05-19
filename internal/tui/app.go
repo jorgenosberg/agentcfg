@@ -1295,6 +1295,282 @@ func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string 
 	return result
 }
 
+func (m model) currentItemTitle() string {
+	switch m.mode {
+	case viewAgentcfg:
+		grouped := m.groupedItems()
+		if m.cursor < len(grouped) {
+			g := grouped[m.cursor]
+			return g.Item.Kind + " · " + g.Item.Name
+		}
+	case viewAgentFolders:
+		entries := m.filteredTargetEntries()
+		if m.cursor < len(entries) {
+			e := entries[m.cursor]
+			return e.Target.Name + " · " + e.Item.Name
+		}
+	case viewProjects:
+		if m.cursor < len(m.projectItems) {
+			it := m.projectItems[m.cursor]
+			return it.Project + " · " + it.Name
+		}
+	}
+	return "Actions"
+}
+
+func (m model) buildItemActions() []paletteAction {
+	switch m.mode {
+	case viewAgentcfg:
+		return m.buildSourceItemActions()
+	case viewAgentFolders:
+		return m.buildAgentItemActions()
+	case viewProjects:
+		return m.buildProjectItemActions()
+	}
+	return nil
+}
+
+func (m model) buildSourceItemActions() []paletteAction {
+	grouped := m.groupedItems()
+	if m.cursor >= len(grouped) {
+		return nil
+	}
+	g := grouped[m.cursor]
+	cfg := m.cfg
+	cfgPath := m.cfgPath
+
+	var hasAbsent, hasLinkedCopied, hasDrifted, hasUnmanaged bool
+	for _, e := range g.Entries {
+		switch e.Status {
+		case sync.StatusAbsent:
+			hasAbsent = true
+		case sync.StatusLinked, sync.StatusCopied:
+			hasLinkedCopied = true
+		case sync.StatusDrifted:
+			hasDrifted = true
+			hasLinkedCopied = true
+		case sync.StatusUnmanaged:
+			hasUnmanaged = true
+		}
+	}
+
+	var actions []paletteAction
+
+	if hasAbsent || hasDrifted {
+		entries := g.Entries
+		item := g.Item
+		actions = append(actions, paletteAction{
+			label: "Install to all targets",
+			fn: func() (overlayModel, tea.Cmd) {
+				return nil, func() tea.Msg {
+					var ok, fail int
+					for _, e := range entries {
+						if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(cfg.DefaultStrategy), e.Item); err != nil {
+							fail++
+						} else {
+							ok++
+						}
+					}
+					if fail > 0 {
+						return cfgReloadMsg{status: fmt.Sprintf("installed %d, %d errors", ok, fail)}
+					}
+					return cfgReloadMsg{status: fmt.Sprintf("installed %s (%d targets)", item.Name, ok)}
+				}
+			},
+		})
+	}
+
+	// Toggle — always offered
+	{
+		item := g.Item
+		targets := cfg.Targets
+		if m.sourceTarget != "" {
+			for _, t := range cfg.Targets {
+				if t.Name == m.sourceTarget {
+					targets = []config.Target{t}
+					break
+				}
+			}
+		}
+		allDisabled := true
+		for _, t := range targets {
+			if !t.IsDisabled(item) {
+				allDisabled = false
+				break
+			}
+		}
+		disable := !allDisabled
+		label := "Disable item"
+		if allDisabled {
+			label = "Enable item"
+		}
+		tgts := targets
+		actions = append(actions, paletteAction{
+			label: label,
+			fn: func() (overlayModel, tea.Cmd) {
+				return nil, func() tea.Msg {
+					for _, t := range tgts {
+						if err := sync.Toggle(cfgPath, t.Name, item, disable); err != nil {
+							return cfgReloadMsg{err: err}
+						}
+					}
+					return cfgReloadMsg{status: fmt.Sprintf("toggled %s", item.Name)}
+				}
+			},
+		})
+	}
+
+	if hasUnmanaged {
+		entries := g.Entries
+		item := g.Item
+		actions = append(actions, paletteAction{
+			label: "Adopt unmanaged file",
+			fn: func() (overlayModel, tea.Cmd) {
+				return nil, func() tea.Msg {
+					var ok, fail int
+					for _, e := range entries {
+						if e.Status != sync.StatusUnmanaged {
+							continue
+						}
+						if _, err := sync.Adopt(e.Target, e.Target.ResolveStrategy(cfg.DefaultStrategy), e.Item); err != nil {
+							fail++
+						} else {
+							ok++
+						}
+					}
+					if fail > 0 {
+						return cfgReloadMsg{status: fmt.Sprintf("adopted %d, %d errors", ok, fail)}
+					}
+					return cfgReloadMsg{status: fmt.Sprintf("adopted %s (%d targets)", item.Name, ok)}
+				}
+			},
+		})
+	}
+
+	if hasLinkedCopied {
+		entries := g.Entries
+		item := g.Item
+		actions = append(actions, paletteAction{
+			label: "Uninstall from all targets",
+			fn: func() (overlayModel, tea.Cmd) {
+				return newConfirmOverlay(
+					fmt.Sprintf("Uninstall %q?", item.Name),
+					"Removes installed files from all targets.",
+					func() error {
+						var lastErr error
+						for _, e := range entries {
+							if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(cfg.DefaultStrategy), e.Item); err != nil {
+								lastErr = err
+							}
+						}
+						return lastErr
+					},
+				), nil
+			},
+		})
+
+		targets := cfg.Targets
+		if m.sourceTarget != "" {
+			for _, t := range cfg.Targets {
+				if t.Name == m.sourceTarget {
+					targets = []config.Target{t}
+					break
+				}
+			}
+		}
+		tgts := targets
+		targetCount := len(tgts)
+		detail := fmt.Sprintf("Place a real copy in %d target dir(s) and stop managing. File stays in source.", targetCount)
+		if targetCount == 1 {
+			detail = fmt.Sprintf("Place a real copy in %s and stop managing. File stays in source.", tgts[0].Path)
+		}
+		actions = append(actions, paletteAction{
+			label: "Unmanage",
+			fn: func() (overlayModel, tea.Cmd) {
+				return newConfirmOverlay(
+					fmt.Sprintf("Unmanage %q?", item.Name),
+					detail,
+					func() error {
+						for _, t := range tgts {
+							if err := sync.Unmanage(t, t.ResolveStrategy(cfg.DefaultStrategy), item); err != nil {
+								return err
+							}
+							if err := sync.Toggle(cfgPath, t.Name, item, true); err != nil {
+								return err
+							}
+						}
+						return nil
+					},
+				), nil
+			},
+		})
+	}
+
+	return actions
+}
+
+func (m model) buildAgentItemActions() []paletteAction {
+	entries := m.filteredTargetEntries()
+	if m.cursor >= len(entries) {
+		return nil
+	}
+	e := entries[m.cursor]
+	dest := e.Dest
+
+	if e.Status == sync.StatusUnmanaged {
+		return []paletteAction{{
+			label: "Delete (not managed by agentcfg)",
+			fn: func() (overlayModel, tea.Cmd) {
+				return newConfirmOverlay(
+					fmt.Sprintf("Delete %q from %s?", e.Item.Name, e.Target.Name),
+					fmt.Sprintf("Not managed by agentcfg. Permanently deletes:\n%s", dest),
+					func() error { return os.RemoveAll(dest) },
+				), nil
+			},
+		}}
+	}
+
+	return []paletteAction{{
+		label: fmt.Sprintf("Remove from %s", e.Target.Name),
+		fn: func() (overlayModel, tea.Cmd) {
+			return newConfirmOverlay(
+				fmt.Sprintf("Remove %q from %s?", e.Item.Name, e.Target.Name),
+				fmt.Sprintf("Removes installed file:\n%s", dest),
+				func() error { return os.RemoveAll(dest) },
+			), nil
+		},
+	}}
+}
+
+func (m model) buildProjectItemActions() []paletteAction {
+	if m.cursor >= len(m.projectItems) {
+		return nil
+	}
+	projName := m.projectItems[m.cursor].Project
+	cfgPath := m.cfgPath
+	cfg := m.cfg
+
+	return []paletteAction{{
+		label: fmt.Sprintf("Remove project %q from config", projName),
+		fn: func() (overlayModel, tea.Cmd) {
+			return newConfirmOverlay(
+				fmt.Sprintf("Remove project %q?", projName),
+				"Removes from config only. No files are deleted.",
+				func() error {
+					out := make([]config.Project, 0, len(cfg.Projects))
+					for _, p := range cfg.Projects {
+						if p.Name != projName {
+							out = append(out, p)
+						}
+					}
+					cfg.Projects = out
+					return config.Save(cfgPath, cfg)
+				},
+			), nil
+		},
+	}}
+}
+
 func paletteHintKey() string {
 	if runtime.GOOS == "darwin" {
 		return "⌘P"
