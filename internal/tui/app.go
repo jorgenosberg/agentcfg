@@ -1571,6 +1571,148 @@ func (m model) buildProjectItemActions() []paletteAction {
 	}}
 }
 
+func (m model) buildGlobalActions() []paletteAction {
+	cfg := m.cfg
+	cfgPath := m.cfgPath
+	items := m.items
+
+	var actions []paletteAction
+
+	// Sync all
+	actions = append(actions, paletteAction{
+		label: "Sync all",
+		fn: func() (overlayModel, tea.Cmd) {
+			return nil, func() tea.Msg {
+				lockPath, err := lock.DefaultPath()
+				if err != nil {
+					return cfgReloadMsg{err: err}
+				}
+				lck, err := lock.Load(lockPath)
+				if err != nil {
+					return cfgReloadMsg{err: err}
+				}
+				results := sync.Sync(cfg, items, lck, false, false)
+				var installed, updated int
+				for _, r := range results {
+					if r.Err == nil {
+						if r.OldStatus == sync.StatusAbsent {
+							installed++
+						} else {
+							updated++
+						}
+					}
+				}
+				if len(results) > 0 {
+					_ = lock.Save(lockPath, lck)
+				}
+				status := "everything up to date"
+				if len(results) > 0 {
+					status = fmt.Sprintf("sync: %d installed, %d updated", installed, updated)
+				}
+				return cfgReloadMsg{status: status}
+			}
+		},
+	})
+
+	// Rescan
+	actions = append(actions, paletteAction{
+		label: "Rescan",
+		fn: func() (overlayModel, tea.Cmd) {
+			return nil, func() tea.Msg { return cfgReloadMsg{status: "rescanned"} }
+		},
+	})
+
+	// Add target
+	actions = append(actions, paletteAction{
+		label: "Add target",
+		fn: func() (overlayModel, tea.Cmd) {
+			o, cmd := newAddTargetOverlay(cfgPath, cfg)
+			return o, cmd
+		},
+	})
+
+	// Discover agents
+	actions = append(actions, paletteAction{
+		label: "Discover agents",
+		fn: func() (overlayModel, tea.Cmd) {
+			return newDiscoverOverlay(cfgPath, cfg), nil
+		},
+	})
+
+	// Remove target — only shown if a target filter is currently active
+	targetName := m.sourceTarget
+	if targetName == "" {
+		targetName = m.targetFilter
+	}
+	if targetName != "" {
+		t := targetName
+		actions = append(actions, paletteAction{
+			label: fmt.Sprintf("Remove target %q", t),
+			fn: func() (overlayModel, tea.Cmd) {
+				return newConfirmOverlay(
+					fmt.Sprintf("Remove target %q?", t),
+					"Removes from config only. Installed items are not uninstalled.",
+					func() error {
+						out := make([]config.Target, 0, len(cfg.Targets))
+						for _, tgt := range cfg.Targets {
+							if tgt.Name != t {
+								out = append(out, tgt)
+							}
+						}
+						cfg.Targets = out
+						return config.Save(cfgPath, cfg)
+					},
+				), nil
+			},
+		})
+	}
+
+	// Add project
+	actions = append(actions, paletteAction{
+		label: "Add project",
+		fn: func() (overlayModel, tea.Cmd) {
+			o, cmd := newAddProjectOverlay(cfgPath, cfg)
+			return o, cmd
+		},
+	})
+
+	// Remove project — only shown when cursor is on a project item
+	if m.mode == viewProjects && m.cursor < len(m.projectItems) {
+		projName := m.projectItems[m.cursor].Project
+		p := projName
+		actions = append(actions, paletteAction{
+			label: fmt.Sprintf("Remove project %q", p),
+			fn: func() (overlayModel, tea.Cmd) {
+				return newConfirmOverlay(
+					fmt.Sprintf("Remove project %q?", p),
+					"Removes from config only. No files are deleted.",
+					func() error {
+						out := make([]config.Project, 0, len(cfg.Projects))
+						for _, proj := range cfg.Projects {
+							if proj.Name != p {
+								out = append(out, proj)
+							}
+						}
+						cfg.Projects = out
+						return config.Save(cfgPath, cfg)
+					},
+				), nil
+			},
+		})
+	}
+
+	// Init wizard
+	actions = append(actions, paletteAction{
+		label: "Init wizard",
+		fn: func() (overlayModel, tea.Cmd) {
+			o, cmd := newInitWizardOverlay(cfgPath)
+			return o, cmd
+		},
+	})
+
+	return actions
+}
+
 func paletteHintKey() string {
 	if runtime.GOOS == "darwin" {
 		return "⌘P"
