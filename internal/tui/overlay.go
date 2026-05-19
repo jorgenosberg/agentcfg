@@ -20,7 +20,10 @@ import (
 )
 
 // cfgReloadMsg is dispatched when any management operation completes.
-type cfgReloadMsg struct{ err error }
+type cfgReloadMsg struct {
+	err    error
+	status string // optional status shown in footer; "ready" used if empty
+}
 
 // overlayModel is the in-TUI overlay interface. Returning nil from Update dismisses the overlay.
 type overlayModel interface {

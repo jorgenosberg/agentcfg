@@ -190,6 +190,62 @@ func (m model) adjustOffset() model {
 	return m
 }
 
+var kindCycle = []string{"", source.KindSkill, source.KindHook, source.KindContext}
+
+func nextKind(current string) string {
+	for i, k := range kindCycle {
+		if k == current {
+			return kindCycle[(i+1)%len(kindCycle)]
+		}
+	}
+	return ""
+}
+
+func prevKind(current string) string {
+	for i, k := range kindCycle {
+		if k == current {
+			return kindCycle[(i-1+len(kindCycle))%len(kindCycle)]
+		}
+	}
+	return ""
+}
+
+func nextTarget(current string, targets []config.Target) string {
+	if current == "" {
+		if len(targets) > 0 {
+			return targets[0].Name
+		}
+		return ""
+	}
+	for i, t := range targets {
+		if t.Name == current {
+			if i+1 < len(targets) {
+				return targets[i+1].Name
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
+func prevTarget(current string, targets []config.Target) string {
+	if current == "" {
+		if len(targets) > 0 {
+			return targets[len(targets)-1].Name
+		}
+		return ""
+	}
+	for i, t := range targets {
+		if t.Name == current {
+			if i > 0 {
+				return targets[i-1].Name
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -216,7 +272,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = max(0, n-1)
 		}
 		m = m.adjustOffset()
-		m.status = "ready"
+		if msg.status != "" {
+			m.status = msg.status
+		} else {
+			m.status = "ready"
+		}
 
 	case tea.KeyMsg:
 		if m.overlay != nil {
