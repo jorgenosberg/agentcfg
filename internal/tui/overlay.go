@@ -141,6 +141,106 @@ func (ms multiSelect) View() string {
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+// ── paletteOverlay ────────────────────────────────────────────────────────────
+
+type paletteAction struct {
+	label string
+	fn    func() (overlayModel, tea.Cmd)
+}
+
+type paletteWidget struct {
+	actions []paletteAction
+	cursor  int
+}
+
+func (pw *paletteWidget) moveUp() {
+	if pw.cursor > 0 {
+		pw.cursor--
+	}
+}
+
+func (pw *paletteWidget) moveDown() {
+	if pw.cursor < len(pw.actions)-1 {
+		pw.cursor++
+	}
+}
+
+func (pw *paletteWidget) selected() *paletteAction {
+	if len(pw.actions) == 0 {
+		return nil
+	}
+	return &pw.actions[pw.cursor]
+}
+
+func (pw *paletteWidget) actionAt(n int) *paletteAction {
+	if n < 1 || n > len(pw.actions) {
+		return nil
+	}
+	return &pw.actions[n-1]
+}
+
+func (pw paletteWidget) View() string {
+	var sb strings.Builder
+	for i, a := range pw.actions {
+		num := dimStyle.Render(fmt.Sprintf(" %d  ", i+1))
+		if i == pw.cursor {
+			fmt.Fprintf(&sb, "%s%s%s\n", cursorStyle.Render("▶"), num, tabActiveStyle.Render(a.label))
+		} else {
+			fmt.Fprintf(&sb, " %s%s\n", num, a.label)
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+type paletteOverlay struct {
+	title  string
+	widget paletteWidget
+}
+
+func newPaletteOverlay(title string, actions []paletteAction) *paletteOverlay {
+	return &paletteOverlay{title: title, widget: paletteWidget{actions: actions}}
+}
+
+func (o *paletteOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return o, nil
+	}
+	switch key.String() {
+	case "ctrl+c":
+		return nil, tea.Quit
+	case "esc":
+		return nil, nil
+	case "j", "down":
+		o.widget.moveDown()
+	case "k", "up":
+		o.widget.moveUp()
+	case "enter":
+		if a := o.widget.selected(); a != nil {
+			return a.fn()
+		}
+	default:
+		s := key.String()
+		if len(s) == 1 && s[0] >= '1' && s[0] <= '9' {
+			if a := o.widget.actionAt(int(s[0] - '0')); a != nil {
+				return a.fn()
+			}
+		}
+	}
+	return o, nil
+}
+
+func (o *paletteOverlay) View(w, h int) string {
+	if len(o.widget.actions) == 0 {
+		content := dimStyle.Render("No actions available for this item.") +
+			"\n\n" + dimStyle.Render("Esc  close")
+		return renderOverlayBox(w, h, content, o.title, 44)
+	}
+	content := o.widget.View() +
+		"\n\n" + dimStyle.Render("↑↓ navigate · Enter select · Esc cancel")
+	return renderOverlayBox(w, h, content, o.title, 52)
+}
+
 // ── helpOverlay ───────────────────────────────────────────────────────────────
 
 type helpOverlay struct{}
