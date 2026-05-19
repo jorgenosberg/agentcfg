@@ -367,28 +367,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			half := max(1, m.listHeight()/2)
 			m.cursor = min(m.currentLen()-1, m.cursor+half)
 			m = m.adjustOffset()
-		case "enter", "i":
-			if m.mode == viewAgentcfg {
-				grouped := m.groupedItems()
-				if m.cursor < len(grouped) {
-					g := grouped[m.cursor]
-					var ok, fail int
-					for _, e := range g.Entries {
-						if _, err := sync.Install(e.Target, e.Target.ResolveStrategy(m.cfg.DefaultStrategy), e.Item); err != nil {
-							fail++
-						} else {
-							ok++
-						}
-					}
-					m.entries = sync.Inspect(m.cfg, m.items)
-					m.targetEntries = sync.ScanTargetDirs(m.cfg, m.items)
-					if fail > 0 {
-						m.status = fmt.Sprintf("installed %d, %d errors", ok, fail)
-					} else {
-						m.status = fmt.Sprintf("installed %s (%d targets)", g.Item.Name, ok)
-					}
-				}
+		case "enter":
+			if m.filterFocus != focusNone {
+				m.filterFocus = focusNone
+				return m, nil
 			}
+			actions := m.buildItemActions()
+			if len(actions) > 0 {
+				m.overlay = newPaletteOverlay(m.currentItemTitle(), actions)
+			}
+		case "4", "5", "6", "7", "8", "9":
+			n := int(msg.String()[0] - '0')
+			actions := m.buildItemActions()
+			if n <= len(actions) {
+				next, cmd := actions[n-1].fn()
+				m.overlay = next
+				return m, cmd
+			}
+		case "ctrl+p":
+			m.overlay = newPaletteOverlay("Commands", m.buildGlobalActions())
 		case "f":
 			if m.mode == viewAgentcfg {
 				m.filterFocus = focusKind
