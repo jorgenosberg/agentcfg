@@ -445,7 +445,7 @@ var (
 	borderStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	countStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	previewStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
-	activeBorderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
+	activeBorderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("178"))
 	inactiveBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	selectedRowStyle   = lipgloss.NewStyle().Background(lipgloss.Color("236"))
 

@@ -82,10 +82,10 @@ func renderOverlayBox(w int, content, title string, boxW int) string {
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(lipgloss.Color("178")).
 		Padding(1, 2).
 		Width(boxW).
-		Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63")).Render(title) + "\n\n" + content)
+		Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("178")).Render(title) + "\n\n" + content)
 }
 
 // ── multiSelect widget ────────────────────────────────────────────────────────
