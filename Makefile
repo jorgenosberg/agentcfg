@@ -15,7 +15,7 @@ LDFLAGS := -s -w \
   -X github.com/jorgenosberg/agentcfg/internal/version.Date=$(DATE)
 
 .PHONY: all build agentcfg lazyagentcfg install uninstall \
-        check test vet lint fmt tidy clean run-tui
+        check test vet lint fmt tidy clean run-tui watch
 
 all: build
 
@@ -72,6 +72,14 @@ clean:
 ## run-tui: build and launch the TUI
 run-tui: lazyagentcfg
 	./$(BINDIR)/lazyagentcfg
+
+## watch: rebuild and relaunch the TUI on every .go change (requires watchexec)
+watch:
+	@command -v watchexec >/dev/null 2>&1 || \
+		{ echo "watchexec not found — install: brew install watchexec"; exit 1; }
+	@mkdir -p bin/.watch
+	watchexec --watch . --exts go --restart -- \
+		sh -c 'go build -o bin/.watch/lazyagentcfg ./cmd/lazyagentcfg && exec bin/.watch/lazyagentcfg'
 
 ## help: list available targets
 help:
