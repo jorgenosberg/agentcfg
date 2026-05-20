@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
@@ -439,10 +438,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 var (
 	tabStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	tabActiveStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	tabActiveStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("108"))
+	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("108"))
 	dimStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	statusStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	statusStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("108"))
 	borderStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	countStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	previewStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
@@ -452,7 +451,7 @@ var (
 
 	statusLinkedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
 	statusCopiedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
-	statusDriftedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	statusDriftedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
 	statusAbsentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	statusUnmanagedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	statusDisabledStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
@@ -506,7 +505,7 @@ func (m model) View() string {
 	if m.overlay == nil {
 		return bg
 	}
-	popup := m.overlay.View(m.width, m.height)
+	popup := m.overlay.View(m.width)
 	ppLines := strings.Split(popup, "\n")
 	popupH := len(ppLines)
 	popupW := 0
@@ -1493,9 +1492,6 @@ func (m model) buildGlobalActions() []paletteAction {
 }
 
 func paletteHintKey() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘P"
-	}
 	return "Ctrl+P"
 }
 

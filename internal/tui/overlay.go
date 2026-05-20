@@ -32,8 +32,10 @@ func dimBackground(s string) string {
 }
 
 // pasteOverlay composites popup on top of background at position (x, y).
-// background should be pre-dimmed by dimBackground. popup is the raw overlay
-// box string returned by an overlayModel's View method.
+// It strips ANSI from each affected background line before rune-slicing, then
+// re-applies gray styling to the left and right portions. Assumes ASCII/Latin
+// content — rune count equals display width. popup is the raw box string from
+// an overlayModel's View method.
 func pasteOverlay(background, popup string, x, y int) string {
 	bgLines := strings.Split(background, "\n")
 	ppLines := strings.Split(popup, "\n")
@@ -68,10 +70,10 @@ type cfgReloadMsg struct {
 // overlayModel is the in-TUI overlay interface. Returning nil from Update dismisses the overlay.
 type overlayModel interface {
 	Update(tea.Msg) (overlayModel, tea.Cmd)
-	View(w, h int) string
+	View(w int) string
 }
 
-func renderOverlayBox(w, h int, content, title string, boxW int) string {
+func renderOverlayBox(w int, content, title string, boxW int) string {
 	if boxW > w-4 {
 		boxW = w - 4
 	}
@@ -269,15 +271,15 @@ func (o *paletteOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 	return o, nil
 }
 
-func (o *paletteOverlay) View(w, h int) string {
+func (o *paletteOverlay) View(w int) string {
 	if len(o.widget.actions) == 0 {
 		content := dimStyle.Render("No actions available for this item.") +
 			"\n\n" + dimStyle.Render("Esc  close")
-		return renderOverlayBox(w, h, content, o.title, 44)
+		return renderOverlayBox(w, content, o.title, 44)
 	}
 	content := o.widget.View() +
 		"\n\n" + dimStyle.Render("↑↓ navigate · Enter select · Esc cancel")
-	return renderOverlayBox(w, h, content, o.title, 52)
+	return renderOverlayBox(w, content, o.title, 52)
 }
 
 // ── helpOverlay ───────────────────────────────────────────────────────────────
@@ -300,7 +302,7 @@ func (o *helpOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 	return o, nil
 }
 
-func (o *helpOverlay) View(w, h int) string {
+func (o *helpOverlay) View(w int) string {
 	type binding struct{ key, desc string }
 
 	navigation := []binding{
@@ -362,7 +364,7 @@ func (o *helpOverlay) View(w, h int) string {
 	writeSection("Filters", filters)
 	writeSection("Overlays & forms", overlayKeys)
 
-	return renderOverlayBox(w, h, strings.TrimRight(sb.String(), "\n"), "Keybindings", 60)
+	return renderOverlayBox(w, strings.TrimRight(sb.String(), "\n"), "Keybindings", 60)
 }
 
 // ── confirmOverlay ────────────────────────────────────────────────────────────
@@ -393,11 +395,11 @@ func (o *confirmOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 	return o, nil
 }
 
-func (o *confirmOverlay) View(w, h int) string {
+func (o *confirmOverlay) View(w int) string {
 	content := o.detail + "\n\n" +
 		tabActiveStyle.Render("[ y ]")+" confirm  "+
 		dimStyle.Render("[ n / esc ]")+" cancel"
-	return renderOverlayBox(w, h, content, o.title, 52)
+	return renderOverlayBox(w, content, o.title, 52)
 }
 
 // ── addTargetOverlay ──────────────────────────────────────────────────────────
@@ -547,7 +549,7 @@ func (o *addTargetOverlay) focusCurrent() tea.Cmd {
 	return nil
 }
 
-func (o *addTargetOverlay) View(w, h int) string {
+func (o *addTargetOverlay) View(w int) string {
 	var sb strings.Builder
 
 	// Name field
@@ -589,7 +591,7 @@ func (o *addTargetOverlay) View(w, h int) string {
 		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render("  "+o.errMsg) + "\n\n")
 	}
 	sb.WriteString(dimStyle.Render("tab next field · ←/→ cycle agent · enter submit · esc cancel"))
-	return renderOverlayBox(w, h, sb.String(), "Add target", 56)
+	return renderOverlayBox(w, sb.String(), "Add target", 56)
 }
 
 // ── addProjectOverlay ─────────────────────────────────────────────────────────
@@ -684,7 +686,7 @@ func (o *addProjectOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 	}
 }
 
-func (o *addProjectOverlay) View(w, h int) string {
+func (o *addProjectOverlay) View(w int) string {
 	var sb strings.Builder
 	for i, inp := range []textinput.Model{o.name, o.path} {
 		if i == o.focused {
@@ -699,7 +701,7 @@ func (o *addProjectOverlay) View(w, h int) string {
 		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render("  "+o.errMsg) + "\n\n")
 	}
 	sb.WriteString(dimStyle.Render("tab next field · enter submit · esc cancel"))
-	return renderOverlayBox(w, h, sb.String(), "Add project", 54)
+	return renderOverlayBox(w, sb.String(), "Add project", 54)
 }
 
 // ── discoverOverlay ───────────────────────────────────────────────────────────
@@ -775,17 +777,17 @@ func (o *discoverOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 	return o, nil
 }
 
-func (o *discoverOverlay) View(w, h int) string {
+func (o *discoverOverlay) View(w int) string {
 	if o.empty {
 		content := dimStyle.Render("No new agent directories found on disk.") +
 			"\n\n" + dimStyle.Render("esc close")
-		return renderOverlayBox(w, h, content, "Discover agents", 52)
+		return renderOverlayBox(w, content, "Discover agents", 52)
 	}
 	selCount := len(o.ms.selectedItems())
 	header := dimStyle.Render(fmt.Sprintf("%d / %d selected", selCount, len(o.ms.items)))
 	content := header + "\n\n" + o.ms.View() + "\n\n" +
 		dimStyle.Render("j/k move · space toggle · ctrl+a all/none · enter confirm · esc cancel")
-	return renderOverlayBox(w, h, content, "Discover agents", max(52, w*3/5))
+	return renderOverlayBox(w, content, "Discover agents", max(52, w*3/5))
 }
 
 // ── initWizardOverlay ─────────────────────────────────────────────────────────
@@ -1136,7 +1138,7 @@ func (o *initWizardOverlay) stepLabel() string {
 	return strings.Join(styledLabels, dimStyle.Render(" → "))
 }
 
-func (o *initWizardOverlay) View(w, h int) string {
+func (o *initWizardOverlay) View(w int) string {
 	var sb strings.Builder
 	sb.WriteString(o.stepLabel())
 	sb.WriteString("\n\n")
@@ -1201,5 +1203,5 @@ func (o *initWizardOverlay) View(w, h int) string {
 		sb.WriteString(dimStyle.Render("tab next field · enter finish · esc cancel"))
 	}
 
-	return renderOverlayBox(w, h, sb.String(), "Init wizard", max(56, w*3/5))
+	return renderOverlayBox(w, sb.String(), "Init wizard", max(56, w*3/5))
 }
