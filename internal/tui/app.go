@@ -1197,21 +1197,33 @@ func readPreview(path string, isDir bool, maxLines, maxWidth int) []string {
 	return result
 }
 
-func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string {
-	lexer := lexers.Match(path)
-	if lexer == nil {
-		lexer = lexers.Analyse(string(data))
+// splitFrontmatter splits data into a YAML frontmatter block and the remaining
+// body when the file begins with a --- delimiter. Returns ok=false if no
+// frontmatter is present.
+func splitFrontmatter(data []byte) (fm, body []byte, ok bool) {
+	lines := strings.Split(string(data), "\n")
+	if len(lines) < 2 || strings.TrimRight(lines[0], "\r") != "---" {
+		return nil, nil, false
 	}
-	if lexer == nil {
-		return nil
+	for i := 1; i < len(lines); i++ {
+		trimmed := strings.TrimRight(lines[i], "\r")
+		if trimmed == "---" || trimmed == "..." {
+			fm = []byte(strings.Join(lines[:i+1], "\n") + "\n")
+			body = []byte(strings.Join(lines[i+1:], "\n"))
+			return fm, body, true
+		}
 	}
-	lexer = chroma.Coalesce(lexer)
+	return nil, nil, false
+}
 
+// highlightBlock runs Chroma on data using the given lexer and returns rendered
+// lines, each prefixed with a space. Returns nil on any failure.
+func highlightBlock(lexer chroma.Lexer, data []byte, maxLines, maxWidth int) []string {
+	lexer = chroma.Coalesce(lexer)
 	style := styles.Get("monokai")
 	if style == nil {
 		return nil
 	}
-
 	tokens, err := lexer.Tokenise(nil, string(data))
 	if err != nil {
 		return nil
@@ -1220,7 +1232,6 @@ func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string 
 	if err := chromaformatters.TTY16m.Format(&buf, style, tokens); err != nil {
 		return nil
 	}
-
 	const reset = "\033[0m"
 	rawLines := strings.Split(buf.String(), "\n")
 	result := make([]string, 0, min(len(rawLines), maxLines))
@@ -1234,6 +1245,38 @@ func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string 
 		result = append(result, " "+line+reset)
 	}
 	return result
+}
+
+func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string {
+	// For markdown files, highlight YAML frontmatter separately so the --- block
+	// is not misread as a horizontal rule.
+	if ext := strings.ToLower(filepath.Ext(path)); ext == ".md" || ext == ".markdown" {
+		if fm, body, hasFM := splitFrontmatter(data); hasFM {
+			if yamlLexer := lexers.Get("yaml"); yamlLexer != nil {
+				fmLines := highlightBlock(yamlLexer, fm, maxLines, maxWidth)
+				if fmLines != nil {
+					remaining := maxLines - len(fmLines)
+					if remaining > 0 && len(strings.TrimSpace(string(body))) > 0 {
+						if mdLexer := lexers.Get("markdown"); mdLexer != nil {
+							if mdLines := highlightBlock(mdLexer, body, remaining, maxWidth); mdLines != nil {
+								return append(fmLines, mdLines...)
+							}
+						}
+					}
+					return fmLines
+				}
+			}
+		}
+	}
+
+	lexer := lexers.Match(path)
+	if lexer == nil {
+		lexer = lexers.Analyse(string(data))
+	}
+	if lexer == nil {
+		return nil
+	}
+	return highlightBlock(lexer, data, maxLines, maxWidth)
 }
 
 func (m model) currentItemTitle() string {
