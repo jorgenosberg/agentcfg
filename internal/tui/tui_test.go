@@ -1,11 +1,23 @@
 package tui
 
 import (
+	"os"
+	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 )
+
+// TestMain forces CLICOLOR_FORCE so lipgloss renders ANSI codes in non-TTY test
+// environments. Tests that rely on color output (e.g. dimBackground) require this.
+func TestMain(m *testing.M) {
+	os.Setenv("CLICOLOR_FORCE", "1")
+	os.Exit(m.Run())
+}
 
 func TestNextKind(t *testing.T) {
 	cases := []struct{ in, want string }{
@@ -120,5 +132,88 @@ func TestPaletteWidgetSelected(t *testing.T) {
 	empty := paletteWidget{}
 	if a := empty.selected(); a != nil {
 		t.Fatalf("expected nil for empty widget, got %v", a)
+	}
+}
+
+func TestDimBackgroundStripsColors(t *testing.T) {
+	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true).Render("hello world")
+	result := dimBackground(styled)
+	if got := ansi.Strip(result); got != "hello world" {
+		t.Errorf("got %q, want %q", got, "hello world")
+	}
+	if result == styled {
+		t.Error("dimBackground should change styling")
+	}
+}
+
+func TestDimBackgroundPreservesLineCount(t *testing.T) {
+	input := "first\nsecond\nthird"
+	result := dimBackground(input)
+	resultLines := strings.Split(result, "\n")
+	inputLines := strings.Split(input, "\n")
+	if len(resultLines) != len(inputLines) {
+		t.Fatalf("got %d lines, want %d", len(resultLines), len(inputLines))
+	}
+	for i, line := range resultLines {
+		if got := ansi.Strip(line); got != inputLines[i] {
+			t.Errorf("line %d: got %q, want %q", i, got, inputLines[i])
+		}
+	}
+}
+
+func TestPasteOverlayBasic(t *testing.T) {
+	bg := "1234567890\n1234567890\n1234567890"
+	popup := "AB\nCD"
+	result := pasteOverlay(bg, popup, 2, 1)
+	lines := strings.Split(result, "\n")
+	if got := ansi.Strip(lines[0]); got != "1234567890" {
+		t.Errorf("line 0: got %q, want %q", got, "1234567890")
+	}
+	if got := ansi.Strip(lines[1]); got != "12AB567890" {
+		t.Errorf("line 1: got %q, want %q", got, "12AB567890")
+	}
+	if got := ansi.Strip(lines[2]); got != "12CD567890" {
+		t.Errorf("line 2: got %q, want %q", got, "12CD567890")
+	}
+}
+
+func TestPasteOverlayAtOrigin(t *testing.T) {
+	bg := "AAAA\nAAAA"
+	popup := "BB"
+	result := pasteOverlay(bg, popup, 0, 0)
+	lines := strings.Split(result, "\n")
+	if got := ansi.Strip(lines[0]); got != "BBAA" {
+		t.Errorf("line 0: got %q, want %q", got, "BBAA")
+	}
+	if got := ansi.Strip(lines[1]); got != "AAAA" {
+		t.Errorf("line 1 should be unchanged: got %q, want %q", got, "AAAA")
+	}
+}
+
+func TestPasteOverlayPadsShortLine(t *testing.T) {
+	bg := "AB\nXX"
+	popup := "12345"
+	result := pasteOverlay(bg, popup, 4, 0)
+	lines := strings.Split(result, "\n")
+	// "AB" padded to col 4, then popup inserted
+	if got := ansi.Strip(lines[0]); got != "AB  12345" {
+		t.Errorf("line 0: got %q, want %q", got, "AB  12345")
+	}
+}
+
+func TestPasteOverlaySkipsOutOfBoundsRows(t *testing.T) {
+	bg := "line0\nline1"
+	popup := "X\nY\nZ"
+	// y=1 means popup rows land at bg lines 1, 2, 3 — line 2 and 3 don't exist
+	result := pasteOverlay(bg, popup, 0, 1)
+	lines := strings.Split(result, "\n")
+	if len(lines) != 2 {
+		t.Errorf("background line count should not change: got %d", len(lines))
+	}
+	if got := ansi.Strip(lines[0]); got != "line0" {
+		t.Errorf("line 0 should be unchanged: got %q", got)
+	}
+	if got := ansi.Strip(lines[1]); got != "Xine1" {
+		t.Errorf("line 1: got %q, want %q", got, "Xine1")
 	}
 }

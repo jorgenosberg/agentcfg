@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/jorgenosberg/agentcfg/internal/agent"
 	"github.com/jorgenosberg/agentcfg/internal/catalog"
@@ -18,6 +19,45 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 	"github.com/jorgenosberg/agentcfg/internal/wizard"
 )
+
+// dimBackground strips ANSI codes from s and re-renders every line in gray,
+// producing a visible but clearly inactive background for overlay compositing.
+func dimBackground(s string) string {
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = gray.Render(ansi.Strip(line))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// pasteOverlay composites popup on top of background at position (x, y).
+// background should be pre-dimmed by dimBackground. popup is the raw overlay
+// box string returned by an overlayModel's View method.
+func pasteOverlay(background, popup string, x, y int) string {
+	bgLines := strings.Split(background, "\n")
+	ppLines := strings.Split(popup, "\n")
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	col := x
+	if col < 0 {
+		col = 0
+	}
+	for i, ppLine := range ppLines {
+		idx := y + i
+		if idx < 0 || idx >= len(bgLines) {
+			continue
+		}
+		plain := []rune(ansi.Strip(bgLines[idx]))
+		ppW := lipgloss.Width(ppLine)
+		for len(plain) < col+ppW {
+			plain = append(plain, ' ')
+		}
+		left := string(plain[:col])
+		right := string(plain[col+ppW:])
+		bgLines[idx] = gray.Render(left) + ppLine + gray.Render(right)
+	}
+	return strings.Join(bgLines, "\n")
+}
 
 // cfgReloadMsg is dispatched when any management operation completes.
 type cfgReloadMsg struct {
