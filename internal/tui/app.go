@@ -690,20 +690,16 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 
 func renderPreviewSummary(meta previewMeta, w int) []string {
 	d := dimStyle.Render
-	c := countStyle.Render
+	p := previewStyle.Render
 
-	// Line 1: name (left) + kind [· status] (right)
-	rightPart := c(meta.kind)
+	// Line 1: kind [· status] — no filename, it's already in the panel title
+	line1 := " " + hintKeyStyle.Render(meta.kind)
 	if meta.hasStatus {
-		rightPart += d(" · ") + renderStatus(meta.status)
+		line1 += d(" · ") + renderStatus(meta.status)
 	}
-	rightW := lipgloss.Width(rightPart)
-	name := " " + truncateRunes(meta.name, max(0, w-rightW-2))
-	gap := max(1, w-lipgloss.Width(name)-rightW)
-	line1 := name + strings.Repeat(" ", gap) + rightPart
 
-	// Line 2: full path (dim, truncated)
-	line2 := d(" " + truncateRunes(meta.path, w-2))
+	// Line 2: full path
+	line2 := p(" " + truncateRunes(meta.path, w-2))
 
 	// Line 3: stats — lines, chars, token estimate, context window %
 	tokens := meta.chars / 4
@@ -723,10 +719,10 @@ func renderPreviewSummary(meta previewMeta, w int) []string {
 	default:
 		pctStr = fmt.Sprintf("%.0f%%", pct)
 	}
-	line3 := " " + c(fmt.Sprintf("%d", meta.lines)) + d(" lines  ") +
-		c(fmt.Sprintf("%d", meta.chars)) + d(" chars  ~") +
-		c(tokStr) + d(" tokens  ") +
-		c(pctStr) + d(" of 200k ctx")
+	line3 := " " + p(fmt.Sprintf("%d", meta.lines)) + d(" lines  ") +
+		p(fmt.Sprintf("%d", meta.chars)) + d(" chars  ~") +
+		p(tokStr) + d(" tokens  ") +
+		p(pctStr) + d(" of 200k ctx")
 
 	return []string{line1, line2, line3}
 }
