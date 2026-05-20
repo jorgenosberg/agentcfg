@@ -679,7 +679,7 @@ func (m model) buildRightPanel(lh, rightIW int) []string {
 	label := "─ Preview "
 	if path, _, ok := m.currentPreviewPath(); ok {
 		name := filepath.Base(path)
-		// Reserve 4 cells: "─ " prefix (2) + trailing space (1) + closing "┐" (1).
+		// "─ " prefix (2) + trailing space (1) + 1 extra for safety = 4.
 		maxLen := rightIW - 4
 		if maxLen > 0 && len([]rune(name)) > maxLen {
 			name = string([]rune(name)[:maxLen])

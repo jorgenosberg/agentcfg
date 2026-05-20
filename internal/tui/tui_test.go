@@ -250,6 +250,33 @@ func TestBuildRightPanelDynamicTitle(t *testing.T) {
 	}
 }
 
+func TestBuildRightPanelTitleTruncation(t *testing.T) {
+	// rightIW=10 → maxLen=6; filename is longer than 6 runes → should be truncated.
+	item := source.Item{
+		Kind: source.KindHook,
+		Name: "very-long-filename.md",
+		Path: "/tmp/very-long-filename.md",
+	}
+	target := config.Target{Name: "claude", Path: "/tmp/claude"}
+	cfg := config.Config{Targets: []config.Target{target}}
+	m := newModel("", cfg, []source.Item{item}, nil)
+	m.entries = []agentsync.Entry{
+		{Item: item, Target: target, Status: agentsync.StatusLinked, Dest: "/tmp/claude/very-long-filename.md"},
+	}
+	m.cursor = 0
+
+	lines := m.buildRightPanel(20, 10)
+	topBorder := ansi.Strip(lines[0])
+	// The full filename "very-long-filename.md" (21 runes) must not appear — only truncated prefix.
+	if strings.Contains(topBorder, "very-long-filename.md") {
+		t.Errorf("expected filename to be truncated, but full name appears in: %q", topBorder)
+	}
+	// The truncated portion (first 6 runes = "very-l") should appear.
+	if !strings.Contains(topBorder, "very-l") {
+		t.Errorf("expected truncated prefix 'very-l' in title, got: %q", topBorder)
+	}
+}
+
 func TestRenderMainViewFooterSeparator(t *testing.T) {
 	// Minimal model with explicit dimensions.
 	m := newModel("", config.Config{}, nil, nil)
