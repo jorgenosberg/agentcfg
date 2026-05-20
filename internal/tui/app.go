@@ -120,7 +120,7 @@ func (m model) listHeight() int {
 	if m.height == 0 {
 		return 20
 	}
-	if h := m.height - 4; h >= 1 {
+	if h := m.height - 5; h >= 1 {
 		return h
 	}
 	return 1
