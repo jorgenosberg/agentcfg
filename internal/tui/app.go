@@ -1562,7 +1562,7 @@ func truncateRunes(s string, maxR int) string {
 // symbols) don't break the full-row highlight.
 func withBg(s string) string {
 	const (
-		bg   = "\x1b[48;5;78m"
+		bg   = "\x1b[48;5;78m\x1b[30m"
 		sgr0 = "\x1b[0m"
 	)
 	return bg + strings.ReplaceAll(s, sgr0, sgr0+bg) + sgr0
