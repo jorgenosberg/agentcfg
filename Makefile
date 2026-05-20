@@ -78,8 +78,7 @@ watch:
 	@command -v watchexec >/dev/null 2>&1 || \
 		{ echo "watchexec not found — install: brew install watchexec"; exit 1; }
 	@mkdir -p bin/.watch
-	watchexec --watch . --exts go --restart -- \
-		sh -c 'go build -o bin/.watch/lazyagentcfg ./cmd/lazyagentcfg && exec bin/.watch/lazyagentcfg'
+	watchexec -e go -r -- ./scripts/watch-tui.sh
 
 ## help: list available targets
 help:
