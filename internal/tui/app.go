@@ -681,20 +681,20 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 func (m model) buildRightPanel(lh, rightIW int) []string {
 	iR := inactiveBorderStyle.Render
 	total := lh + 3
-	label := "─ Preview "
+	titleText := "Preview"
 	if path, _, ok := m.currentPreviewPath(); ok {
 		name := filepath.Base(path)
-		// "─ " prefix (2) + trailing space (1) + 1 extra for safety = 4.
 		maxLen := rightIW - 4
 		if maxLen > 0 && len([]rune(name)) > maxLen {
 			name = string([]rune(name)[:maxLen])
 		}
 		if maxLen > 0 {
-			label = "─ " + name + " "
+			titleText = name
 		}
 	}
+	label := "─ " + titleText + " "
 	padW := max(0, rightIW-lipgloss.Width(label))
-	topBorder := iR("┌") + iR(label+strings.Repeat("─", padW)) + iR("┐")
+	topBorder := iR("┌") + iR("─ ") + hintKeyStyle.Render(titleText) + iR(" "+strings.Repeat("─", padW)) + iR("┐")
 	previewLines := m.buildPreviewLines(lh+1, rightIW)
 	bottomBorder := iR("└") + iR(strings.Repeat("─", rightIW)) + iR("┘")
 	lines := make([]string, 0, total)
