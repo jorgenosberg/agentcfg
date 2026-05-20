@@ -120,7 +120,7 @@ func (m model) listHeight() int {
 	if m.height == 0 {
 		return 20
 	}
-	if h := m.height - 5; h >= 1 {
+	if h := m.height - 4; h >= 1 {
 		return h
 	}
 	return 1
@@ -438,16 +438,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 var (
 	tabStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	tabActiveStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("108"))
+	tabActiveStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
 	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 	dimStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	statusStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("108"))
+	statusStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
 	borderStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	countStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	previewStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
-	activeBorderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+	activeBorderStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 	inactiveBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	selectedRowStyle   = lipgloss.NewStyle().Background(lipgloss.Color("22"))
+	hintKeyStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
+	hintDescStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 
 	statusLinkedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
 	statusCopiedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
@@ -496,7 +497,6 @@ func (m model) renderMainView() string {
 			b.WriteByte('\n')
 		}
 	}
-	b.WriteString(borderStyle.Render(strings.Repeat("─", m.width)) + "\n")
 	b.WriteString(m.renderFooter(m.width))
 	return b.String()
 }
@@ -860,8 +860,7 @@ func (m model) buildGroupedRows(lh, leftIW int) []string {
 		nameMax := max(4, leftIW-2-7-2-2-cellsVis)
 		name := padToWidth(truncateRunes(g.Item.Name, nameMax), nameMax)
 		if i == m.cursor {
-			content := cursorStyle.Render("▌ ") + kindStr + "  " + name + "  " + cells
-			rows = append(rows, selectedRowStyle.Render(padToWidth(content, leftIW)))
+			rows = append(rows, withBg(padToWidth("  "+kindStr+"  "+name+"  "+cells, leftIW)))
 		} else {
 			rows = append(rows, "  "+kindStr+"  "+name+"  "+cells)
 		}
@@ -902,8 +901,7 @@ func (m model) buildAgentFolderRows(lh, leftIW int) []string {
 		nameMax := max(4, leftIW-2-8-2-7-2-2-statusVis)
 		name := padToWidth(truncateRunes(e.Item.Name, nameMax), nameMax)
 		if i == m.cursor {
-			content := cursorStyle.Render("▌ ") + styledAgent + "  " + kindStr + "  " + name + "  " + statusStr
-			rows = append(rows, selectedRowStyle.Render(padToWidth(content, leftIW)))
+			rows = append(rows, withBg(padToWidth("  "+styledAgent+"  "+kindStr+"  "+name+"  "+statusStr, leftIW)))
 		} else {
 			rows = append(rows, "  "+styledAgent+"  "+kindStr+"  "+name+"  "+statusStr)
 		}
@@ -936,8 +934,7 @@ func (m model) buildProjectsRows(lh, leftIW int) []string {
 		styledAgent := agentNameStyled(it.Agent, 10)
 		rest := fmt.Sprintf("  %-7s  %-24s  %s", it.Kind, it.Name, it.RelPath)
 		if i == m.cursor {
-			content := cursorStyle.Render("▌ ") + projPart + styledAgent + rest
-			rows = append(rows, selectedRowStyle.Render(padToWidth(content, leftIW)))
+			rows = append(rows, withBg(padToWidth("  "+projPart+styledAgent+rest, leftIW)))
 		} else {
 			rows = append(rows, "  "+projPart+styledAgent+rest)
 		}
@@ -1515,11 +1512,14 @@ func (m model) renderFooter(w int) string {
 		left = statusStyle.Render(" " + m.status)
 	}
 
+	k := hintKeyStyle.Render
+	d := hintDescStyle.Render
+
 	var right string
 	if m.filterFocus != focusNone {
-		right = dimStyle.Render("← → cycle · f/t switch filter · Esc back to list ")
+		right = k("← →") + d(" cycle  ") + k("f") + d("/") + k("t") + d(" switch filter  ") + k("Esc") + d(" back to list ")
 	} else {
-		right = dimStyle.Render("↑↓ navigate · Enter actions · " + paletteHintKey() + " commands · ? help · q quit ")
+		right = k("↑↓") + d(" navigate  ") + k("Enter") + d(" actions  ") + k(paletteHintKey()) + d(" commands  ") + k("?") + d(" help  ") + k("q") + d(" quit ")
 	}
 
 	lv := lipgloss.Width(left)
@@ -1555,5 +1555,16 @@ func truncateRunes(s string, maxR int) string {
 		return ""
 	}
 	return string(r[:maxR-1]) + "…"
+}
+
+// withBg applies the selected-row background to s, re-applying the background
+// escape after every SGR-0 reset so inline-styled tokens (brand badges, status
+// symbols) don't break the full-row highlight.
+func withBg(s string) string {
+	const (
+		bg   = "\x1b[48;5;78m"
+		sgr0 = "\x1b[0m"
+	)
+	return bg + strings.ReplaceAll(s, sgr0, sgr0+bg) + sgr0
 }
 

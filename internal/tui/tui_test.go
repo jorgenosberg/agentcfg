@@ -277,20 +277,3 @@ func TestBuildRightPanelTitleTruncation(t *testing.T) {
 	}
 }
 
-func TestRenderMainViewFooterSeparator(t *testing.T) {
-	// Minimal model with explicit dimensions.
-	m := newModel("", config.Config{}, nil, nil)
-	m.width = 80
-	m.height = 24
-	out := m.renderMainView()
-	lines := strings.Split(out, "\n")
-	if len(lines) < 2 {
-		t.Fatal("expected at least 2 lines in renderMainView output")
-	}
-	// renderFooter has no trailing newline, so it becomes lines[last].
-	// The separator (with its trailing \n) is lines[last-1].
-	sep := ansi.Strip(lines[len(lines)-2])
-	if !strings.HasPrefix(sep, "─") {
-		t.Errorf("expected separator line before footer, got: %q", sep)
-	}
-}
