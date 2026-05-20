@@ -45,7 +45,12 @@ func Run(cfgPath string, cfg config.Config) error {
 	projectItems := scanAllProjects(cfg)
 
 	m := newModel(cfgPath, cfg, items, projectItems)
-	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
+	opts := []tea.ProgramOption{tea.WithAltScreen()}
+	if tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0); err == nil {
+		defer tty.Close()
+		opts = append(opts, tea.WithInput(tty), tea.WithOutput(tty))
+	}
+	_, err = tea.NewProgram(m, opts...).Run()
 	return err
 }
 
