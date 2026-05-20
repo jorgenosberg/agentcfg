@@ -477,10 +477,7 @@ func renderStatus(s sync.Status) string {
 	}
 }
 
-func (m model) View() string {
-	if m.overlay != nil {
-		return m.overlay.View(m.width, m.height)
-	}
+func (m model) renderMainView() string {
 	leftIW, rightIW, hasRight := m.innerWidths()
 	lh := m.listHeight()
 	leftLines := m.buildLeftPanel(lh, leftIW)
@@ -502,6 +499,31 @@ func (m model) View() string {
 	}
 	b.WriteString(m.renderFooter(m.width))
 	return b.String()
+}
+
+func (m model) View() string {
+	bg := m.renderMainView()
+	if m.overlay == nil {
+		return bg
+	}
+	popup := m.overlay.View(m.width, m.height)
+	ppLines := strings.Split(popup, "\n")
+	popupH := len(ppLines)
+	popupW := 0
+	for _, l := range ppLines {
+		if w := lipgloss.Width(l); w > popupW {
+			popupW = w
+		}
+	}
+	x := (m.width - popupW) / 2
+	y := (m.height - popupH) / 2
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	return pasteOverlay(dimBackground(bg), popup, x, y)
 }
 
 func (m model) buildContentRows(lh, leftIW int) []string {
