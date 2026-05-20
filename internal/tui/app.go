@@ -496,6 +496,7 @@ func (m model) renderMainView() string {
 			b.WriteByte('\n')
 		}
 	}
+	b.WriteString(borderStyle.Render(strings.Repeat("─", m.width)) + "\n")
 	b.WriteString(m.renderFooter(m.width))
 	return b.String()
 }
