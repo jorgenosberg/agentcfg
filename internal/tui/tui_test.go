@@ -10,6 +10,7 @@ import (
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/source"
+	agentsync "github.com/jorgenosberg/agentcfg/internal/sync"
 )
 
 // TestMain forces CLICOLOR_FORCE so lipgloss renders ANSI codes in non-TTY test
@@ -215,6 +216,37 @@ func TestPasteOverlaySkipsOutOfBoundsRows(t *testing.T) {
 	}
 	if got := ansi.Strip(lines[1]); got != "Xine1" {
 		t.Errorf("line 1: got %q, want %q", got, "Xine1")
+	}
+}
+
+func TestBuildRightPanelFallbackTitle(t *testing.T) {
+	// No items → currentPreviewPath returns ok=false → label stays "Preview".
+	m := newModel("", config.Config{}, nil, nil)
+	lines := m.buildRightPanel(20, 36)
+	topBorder := ansi.Strip(lines[0])
+	if !strings.Contains(topBorder, "Preview") {
+		t.Errorf("expected 'Preview' in fallback title, got: %q", topBorder)
+	}
+}
+
+func TestBuildRightPanelDynamicTitle(t *testing.T) {
+	item := source.Item{
+		Kind: source.KindHook,
+		Name: "stop.md",
+		Path: "/tmp/stop.md",
+	}
+	target := config.Target{Name: "claude", Path: "/tmp/claude"}
+	cfg := config.Config{Targets: []config.Target{target}}
+	m := newModel("", cfg, []source.Item{item}, nil)
+	m.entries = []agentsync.Entry{
+		{Item: item, Target: target, Status: agentsync.StatusLinked, Dest: "/tmp/claude/stop.md"},
+	}
+	m.cursor = 0
+
+	lines := m.buildRightPanel(20, 36)
+	topBorder := ansi.Strip(lines[0])
+	if !strings.Contains(topBorder, "stop.md") {
+		t.Errorf("expected filename 'stop.md' in title, got: %q", topBorder)
 	}
 }
 

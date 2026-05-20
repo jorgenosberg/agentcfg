@@ -677,6 +677,17 @@ func (m model) buildRightPanel(lh, rightIW int) []string {
 	iR := inactiveBorderStyle.Render
 	total := lh + 3
 	label := "─ Preview "
+	if path, _, ok := m.currentPreviewPath(); ok {
+		name := filepath.Base(path)
+		// Reserve 4 cells: "─ " prefix (2) + trailing space (1) + closing "┐" (1).
+		maxLen := rightIW - 4
+		if maxLen > 0 && len([]rune(name)) > maxLen {
+			name = string([]rune(name)[:maxLen])
+		}
+		if maxLen > 0 {
+			label = "─ " + name + " "
+		}
+	}
 	padW := max(0, rightIW-lipgloss.Width(label))
 	topBorder := iR("┌") + iR(label+strings.Repeat("─", padW)) + iR("┐")
 	previewLines := m.buildPreviewLines(lh+1, rightIW)
