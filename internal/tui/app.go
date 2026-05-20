@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/chroma/v2"
 	chromaformatters "github.com/alecthomas/chroma/v2/formatters"
@@ -99,6 +100,7 @@ type previewMeta struct {
 	hasStatus bool
 	lines     int
 	chars     int
+	modTime   time.Time
 }
 
 func newModel(cfgPath string, cfg config.Config, items []source.Item, projectItems []source.ProjectItem) model {
@@ -688,14 +690,52 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 	}
 }
 
+func relativeTime(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		if m := int(d.Minutes()); m == 1 {
+			return "1 minute ago"
+		} else {
+			return fmt.Sprintf("%d minutes ago", m)
+		}
+	case d < 24*time.Hour:
+		if h := int(d.Hours()); h == 1 {
+			return "1 hour ago"
+		} else {
+			return fmt.Sprintf("%d hours ago", h)
+		}
+	case d < 7*24*time.Hour:
+		if days := int(d.Hours() / 24); days == 1 {
+			return "1 day ago"
+		} else {
+			return fmt.Sprintf("%d days ago", days)
+		}
+	case d < 365*24*time.Hour:
+		return t.Format("Jan 2")
+	default:
+		return t.Format("Jan 2, 2006")
+	}
+}
+
 func renderPreviewSummary(meta previewMeta, w int) []string {
 	d := dimStyle.Render
 	p := previewStyle.Render
 
-	// Line 1: kind [· status] — no filename, it's already in the panel title
-	line1 := " " + hintKeyStyle.Render(meta.kind)
+	// Line 1: kind [· status] left, modified time right
+	left := " " + hintKeyStyle.Render(meta.kind)
 	if meta.hasStatus {
-		line1 += d(" · ") + renderStatus(meta.status)
+		left += d(" · ") + renderStatus(meta.status)
+	}
+	var line1 string
+	if !meta.modTime.IsZero() {
+		right := d("modified ") + p(relativeTime(meta.modTime))
+		gap := max(1, w-lipgloss.Width(left)-lipgloss.Width(right))
+		line1 = left + strings.Repeat(" ", gap) + right
+	} else {
+		line1 = left
 	}
 
 	// Line 2: full path
@@ -1092,6 +1132,9 @@ func (m model) currentPreviewMeta() (previewMeta, bool) {
 			meta.kind = it.Kind
 			meta.name = it.Name
 		}
+	}
+	if info, err := os.Stat(path); err == nil {
+		meta.modTime = info.ModTime()
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
