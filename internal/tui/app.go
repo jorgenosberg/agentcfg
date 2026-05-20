@@ -439,15 +439,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 var (
 	tabStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	tabActiveStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("108"))
-	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("108"))
+	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 	dimStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	statusStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("108"))
 	borderStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	countStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	previewStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
-	activeBorderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("178"))
+	activeBorderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 	inactiveBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	selectedRowStyle   = lipgloss.NewStyle().Background(lipgloss.Color("236"))
+	selectedRowStyle   = lipgloss.NewStyle().Background(lipgloss.Color("22"))
 
 	statusLinkedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
 	statusCopiedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
