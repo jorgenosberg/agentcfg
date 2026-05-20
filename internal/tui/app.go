@@ -91,6 +91,16 @@ type groupedItem struct {
 	Entries []sync.Entry
 }
 
+type previewMeta struct {
+	name      string
+	kind      string
+	path      string
+	status    sync.Status
+	hasStatus bool
+	lines     int
+	chars     int
+}
+
 func newModel(cfgPath string, cfg config.Config, items []source.Item, projectItems []source.ProjectItem) model {
 	return model{
 		cfgPath:       cfgPath,
@@ -678,6 +688,49 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 	}
 }
 
+func renderPreviewSummary(meta previewMeta, w int) []string {
+	d := dimStyle.Render
+	c := countStyle.Render
+
+	// Line 1: name (left) + kind [· status] (right)
+	rightPart := c(meta.kind)
+	if meta.hasStatus {
+		rightPart += d(" · ") + renderStatus(meta.status)
+	}
+	rightW := lipgloss.Width(rightPart)
+	name := " " + truncateRunes(meta.name, max(0, w-rightW-2))
+	gap := max(1, w-lipgloss.Width(name)-rightW)
+	line1 := name + strings.Repeat(" ", gap) + rightPart
+
+	// Line 2: full path (dim, truncated)
+	line2 := d(" " + truncateRunes(meta.path, w-2))
+
+	// Line 3: stats — lines, chars, token estimate, context window %
+	tokens := meta.chars / 4
+	var tokStr string
+	if tokens < 1000 {
+		tokStr = fmt.Sprintf("%d", tokens)
+	} else {
+		tokStr = fmt.Sprintf("%.1fk", float64(tokens)/1000)
+	}
+	pct := float64(tokens) / 2000 // tokens/200000*100
+	var pctStr string
+	switch {
+	case pct < 0.1:
+		pctStr = "<0.1%"
+	case pct < 10:
+		pctStr = fmt.Sprintf("%.1f%%", pct)
+	default:
+		pctStr = fmt.Sprintf("%.0f%%", pct)
+	}
+	line3 := " " + c(fmt.Sprintf("%d", meta.lines)) + d(" lines  ") +
+		c(fmt.Sprintf("%d", meta.chars)) + d(" chars  ~") +
+		c(tokStr) + d(" tokens  ") +
+		c(pctStr) + d(" of 200k ctx")
+
+	return []string{line1, line2, line3}
+}
+
 func (m model) buildRightPanel(lh, rightIW int) []string {
 	iR := inactiveBorderStyle.Render
 	total := lh + 3
@@ -695,10 +748,28 @@ func (m model) buildRightPanel(lh, rightIW int) []string {
 	label := "─ " + titleText + " "
 	padW := max(0, rightIW-lipgloss.Width(label))
 	topBorder := iR("┌") + iR("─ ") + hintKeyStyle.Render(titleText) + iR(" "+strings.Repeat("─", padW)) + iR("┐")
-	previewLines := m.buildPreviewLines(lh+1, rightIW)
+
+	const summaryTotalH = 4 // 3 content lines + 1 separator
+	meta, hasMeta := m.currentPreviewMeta()
+	if lh < summaryTotalH+2 {
+		hasMeta = false
+	}
+
+	previewH := lh + 1
+	if hasMeta {
+		previewH -= summaryTotalH
+	}
+
+	previewLines := m.buildPreviewLines(previewH, rightIW)
 	bottomBorder := iR("└") + iR(strings.Repeat("─", rightIW)) + iR("┘")
 	lines := make([]string, 0, total)
 	lines = append(lines, topBorder)
+	if hasMeta {
+		for _, sl := range renderPreviewSummary(meta, rightIW) {
+			lines = append(lines, iR("│")+padToWidth(sl, rightIW)+iR("│"))
+		}
+		lines = append(lines, iR("│")+iR(strings.Repeat("─", rightIW))+iR("│"))
+	}
 	for _, row := range previewLines {
 		lines = append(lines, iR("│")+padToWidth(row, rightIW)+iR("│"))
 	}
@@ -997,6 +1068,45 @@ func (m model) currentPreviewPath() (path string, isDir bool, ok bool) {
 		}
 		return it.Path, false, true
 	}
+}
+
+func (m model) currentPreviewMeta() (previewMeta, bool) {
+	path, isDir, ok := m.currentPreviewPath()
+	if !ok || isDir {
+		return previewMeta{}, false
+	}
+	meta := previewMeta{path: path, name: filepath.Base(path)}
+	switch m.mode {
+	case viewAgentcfg:
+		if grouped := m.groupedItems(); m.cursor < len(grouped) {
+			meta.kind = grouped[m.cursor].Item.Kind
+			meta.name = grouped[m.cursor].Item.Name
+		}
+	case viewAgentFolders:
+		if entries := m.filteredTargetEntries(); m.cursor < len(entries) {
+			e := entries[m.cursor]
+			meta.kind = e.Item.Kind
+			meta.name = e.Item.Name
+			meta.status = e.Status
+			meta.hasStatus = true
+		}
+	default:
+		if m.cursor < len(m.projectItems) {
+			it := m.projectItems[m.cursor]
+			meta.kind = it.Kind
+			meta.name = it.Name
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return meta, true
+	}
+	meta.chars = len(data)
+	meta.lines = strings.Count(string(data), "\n")
+	if meta.chars > 0 && data[meta.chars-1] != '\n' {
+		meta.lines++
+	}
+	return meta, true
 }
 
 func readPreview(path string, isDir bool, maxLines, maxWidth int) []string {
