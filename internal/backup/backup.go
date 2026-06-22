@@ -121,6 +121,35 @@ func Restore(snapshotDir string, cfg config.Config) error {
 	return nil
 }
 
+// Prune removes old snapshots, keeping the `keep` most recent ones.
+// It is a no-op when the number of snapshots is already ≤ keep.
+func Prune(root string, keep int) error {
+	entries, err := os.ReadDir(root)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	snaps, err := List(root)
+	if err != nil {
+		return err
+	}
+	if len(snaps) <= keep {
+		return nil
+	}
+	retained := make(map[string]bool, keep)
+	for _, s := range snaps[:keep] {
+		retained[s.Timestamp.UTC().Format("20060102-150405")] = true
+	}
+	for _, e := range entries {
+		if e.IsDir() && !retained[e.Name()] {
+			_ = os.RemoveAll(filepath.Join(root, e.Name()))
+		}
+	}
+	return nil
+}
+
 // DefaultRoot returns ~/.agentcfg/backups.
 func DefaultRoot() (string, error) {
 	home, err := os.UserHomeDir()

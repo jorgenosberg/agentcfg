@@ -1015,12 +1015,23 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if len(snaps) == 0 {
-					backupDir, err := backup.Create(cfg, backupRoot)
-					if err != nil {
-						return fmt.Errorf("auto-backup failed: %w", err)
+				// Collect names covered by any existing snapshot.
+				covered := make(map[string]bool)
+				for _, snap := range snaps {
+					for _, ts := range snap.Targets {
+						covered[ts.Name] = true
 					}
-					fmt.Fprintf(cmd.OutOrStdout(), "backup created: %s\n", backupDir)
+				}
+				// Backup if any existing target dir has never been snapshotted.
+				for _, t := range cfg.Targets {
+					if _, serr := os.Stat(t.Path); serr == nil && !covered[t.Name] {
+						backupDir, berr := backup.Create(cfg, backupRoot)
+						if berr != nil {
+							return fmt.Errorf("auto-backup failed: %w", berr)
+						}
+						fmt.Fprintf(cmd.OutOrStdout(), "backup created: %s\n", backupDir)
+						break
+					}
 				}
 			}
 
@@ -1125,6 +1136,8 @@ func newBackupCmd(load func() (config.Config, error)) *cobra.Command {
 		},
 	}
 
+	var restoreLatest bool
+	var restoreIndex int
 	restore := &cobra.Command{
 		Use:   "restore",
 		Short: "Restore a snapshot back to original target paths",
@@ -1145,24 +1158,32 @@ func newBackupCmd(load func() (config.Config, error)) *cobra.Command {
 				return fmt.Errorf("no backups found in %s", root)
 			}
 
-			// list options and let user pick by index
-			fmt.Fprintln(cmd.OutOrStdout(), "Available snapshots:")
-			for i, s := range snaps {
-				names := make([]string, len(s.Targets))
-				for j, t := range s.Targets {
-					names[j] = t.Name
-				}
-				fmt.Fprintf(cmd.OutOrStdout(), "  [%d] %s  (%s)\n",
-					i+1, s.Timestamp.Format("2006-01-02 15:04:05 UTC"), strings.Join(names, ", "))
-			}
-			fmt.Fprint(cmd.OutOrStdout(), "Select snapshot number: ")
 			var idx int
-			if _, err := fmt.Fscan(cmd.InOrStdin(), &idx); err != nil || idx < 1 || idx > len(snaps) {
-				return fmt.Errorf("invalid selection")
+			switch {
+			case restoreLatest:
+				idx = 1
+			case restoreIndex > 0:
+				if restoreIndex > len(snaps) {
+					return fmt.Errorf("index %d out of range (1-%d)", restoreIndex, len(snaps))
+				}
+				idx = restoreIndex
+			default:
+				fmt.Fprintln(cmd.OutOrStdout(), "Available snapshots:")
+				for i, s := range snaps {
+					names := make([]string, len(s.Targets))
+					for j, t := range s.Targets {
+						names[j] = t.Name
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "  [%d] %s  (%s)\n",
+						i+1, s.Timestamp.Format("2006-01-02 15:04:05 UTC"), strings.Join(names, ", "))
+				}
+				fmt.Fprint(cmd.OutOrStdout(), "Select snapshot number: ")
+				if _, err := fmt.Fscan(cmd.InOrStdin(), &idx); err != nil || idx < 1 || idx > len(snaps) {
+					return fmt.Errorf("invalid selection")
+				}
 			}
 			chosen := snaps[idx-1]
 
-			// find the snapshot dir by timestamp
 			entries, err := os.ReadDir(root)
 			if err != nil {
 				return err
@@ -1186,8 +1207,41 @@ func newBackupCmd(load func() (config.Config, error)) *cobra.Command {
 			return nil
 		},
 	}
+	restore.Flags().BoolVar(&restoreLatest, "latest", false, "restore from the most recent snapshot without prompting")
+	restore.Flags().IntVar(&restoreIndex, "index", 0, "restore snapshot by 1-based index (as shown by 'backup list')")
 
-	c.AddCommand(create, list, restore)
+	var pruneKeep int
+	prune := &cobra.Command{
+		Use:   "prune",
+		Short: "Delete old snapshots, keeping the most recent N",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, err := backup.DefaultRoot()
+			if err != nil {
+				return err
+			}
+			before, err := backup.List(root)
+			if err != nil {
+				return err
+			}
+			if err := backup.Prune(root, pruneKeep); err != nil {
+				return err
+			}
+			after, err := backup.List(root)
+			if err != nil {
+				return err
+			}
+			deleted := len(before) - len(after)
+			if deleted == 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "nothing to prune (%d snapshots)\n", len(after))
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "pruned %d snapshot(s), %d remaining\n", deleted, len(after))
+			}
+			return nil
+		},
+	}
+	prune.Flags().IntVar(&pruneKeep, "keep", 5, "number of most recent snapshots to keep")
+
+	c.AddCommand(create, list, restore, prune)
 	// default subcommand: create
 	c.RunE = create.RunE
 	return c

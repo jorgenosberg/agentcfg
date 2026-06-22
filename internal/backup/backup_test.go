@@ -1,6 +1,7 @@
 package backup_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -225,5 +226,54 @@ func TestRestore(t *testing.T) {
 func TestRestoreMissingManifest(t *testing.T) {
 	if err := backup.Restore(t.TempDir(), config.Config{}); err == nil {
 		t.Error("expected error when manifest.json is missing")
+	}
+}
+
+func TestPruneKeepsNewest(t *testing.T) {
+	root := t.TempDir()
+	targetDir := t.TempDir()
+
+	// Create 4 snapshot dirs with fake manifests at distinct timestamps.
+	for i := range 4 {
+		ts := time.Date(2024, 1, i+1, 0, 0, 0, 0, time.UTC)
+		dir := filepath.Join(root, ts.Format("20060102-150405"))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		snap := backup.Snapshot{
+			Timestamp: ts,
+			Targets:   []backup.TargetSnapshot{{Name: "agent", Path: targetDir, Dir: "agent"}},
+		}
+		data, err := json.Marshal(snap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "manifest.json"), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	snaps, _ := backup.List(root)
+	if len(snaps) != 4 {
+		t.Fatalf("expected 4 snapshots before prune, got %d", len(snaps))
+	}
+
+	if err := backup.Prune(root, 2); err != nil {
+		t.Fatalf("Prune: %v", err)
+	}
+
+	after, _ := backup.List(root)
+	if len(after) != 2 {
+		t.Fatalf("expected 2 snapshots after prune, got %d", len(after))
+	}
+	if !after[0].Timestamp.After(after[1].Timestamp) {
+		t.Error("expected newest-first order after prune")
+	}
+}
+
+func TestPruneNoOp(t *testing.T) {
+	root := t.TempDir()
+	if err := backup.Prune(root, 5); err != nil {
+		t.Fatalf("Prune on empty dir: %v", err)
 	}
 }

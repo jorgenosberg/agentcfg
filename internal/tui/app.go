@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/jorgenosberg/agentcfg/internal/backup"
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/icons"
 	"github.com/jorgenosberg/agentcfg/internal/lock"
@@ -27,7 +28,7 @@ import (
 type viewMode int
 
 const (
-	viewAgentcfg    viewMode = iota // items managed in agentcfg source
+	viewAgentcfg     viewMode = iota // items managed in agentcfg source
 	viewAgentFolders                 // items actually in agent/target directories
 	viewProjects                     // project-local agent configuration files
 )
@@ -333,9 +334,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.cursor, m.offset = 0, 0
 			m.status = map[viewMode]string{
-				viewAgentcfg:    "source view",
+				viewAgentcfg:     "source view",
 				viewAgentFolders: "agents view",
-				viewProjects:    "projects view",
+				viewProjects:     "projects view",
 			}[m.mode]
 		case "j", "down":
 			m.filterFocus = focusNone
@@ -454,23 +455,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 var (
-	tabStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	tabActiveStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
-	cursorStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	dimStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	statusStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
-	borderStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	countStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	previewStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
+	tabStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	tabActiveStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
+	cursorStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+	dimStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	statusStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
+	borderStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	countStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	previewStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("247"))
 	activeBorderStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 	inactiveBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 	hintKeyStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
 	hintDescStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 
-	statusLinkedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
-	statusCopiedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
-	statusDriftedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	statusAbsentStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	statusLinkedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
+	statusCopiedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
+	statusDriftedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	statusAbsentStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	statusUnmanagedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	statusDisabledStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
 )
@@ -1606,6 +1607,65 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
+	// Create backup
+	actions = append(actions, paletteAction{
+		label: "Create backup",
+		fn: func() (overlayModel, tea.Cmd) {
+			return nil, func() tea.Msg {
+				root, err := backup.DefaultRoot()
+				if err != nil {
+					return cfgReloadMsg{err: err}
+				}
+				dir, err := backup.Create(cfg, root)
+				if err != nil {
+					return cfgReloadMsg{err: err}
+				}
+				_ = backup.Prune(root, 5)
+				return cfgReloadMsg{status: fmt.Sprintf("backup: %s", filepath.Base(dir))}
+			}
+		},
+	})
+
+	// Restore from latest backup
+	actions = append(actions, paletteAction{
+		label: "Restore from latest backup",
+		fn: func() (overlayModel, tea.Cmd) {
+			return newConfirmOverlay(
+				"Restore from latest backup?",
+				"Overwrites current target directories with the most recent snapshot.",
+				func() error {
+					root, err := backup.DefaultRoot()
+					if err != nil {
+						return err
+					}
+					snaps, err := backup.List(root)
+					if err != nil {
+						return err
+					}
+					if len(snaps) == 0 {
+						return fmt.Errorf("no backups found")
+					}
+					entries, err := os.ReadDir(root)
+					if err != nil {
+						return err
+					}
+					ts := snaps[0].Timestamp.UTC().Format("20060102-150405")
+					var snapshotDir string
+					for _, e := range entries {
+						if e.Name() == ts {
+							snapshotDir = filepath.Join(root, e.Name())
+							break
+						}
+					}
+					if snapshotDir == "" {
+						return fmt.Errorf("snapshot directory not found")
+					}
+					return backup.Restore(snapshotDir, cfg)
+				},
+			), nil
+		},
+	})
+
 	// Add target
 	actions = append(actions, paletteAction{
 		label: "Add target",
@@ -1725,7 +1785,6 @@ func (m model) renderFooter(w int) string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
-
 func agentNameStyled(agent string, fieldW int) string {
 	padded := fmt.Sprintf("%-*s", fieldW, agent)
 	hex := icons.BrandColor(agent)
@@ -1764,4 +1823,3 @@ func withBg(s string) string {
 	)
 	return bg + strings.ReplaceAll(s, sgr0, sgr0+bg) + sgr0
 }
-
