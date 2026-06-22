@@ -35,6 +35,7 @@ func KnownAgents() []config.Target {
 			Name:  "claude",
 			Path:  filepath.Join(home, ".claude"),
 			Agent: "claude",
+			Alias: "claude",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindHook:    "hooks",
@@ -45,6 +46,7 @@ func KnownAgents() []config.Target {
 			Name:  "codex",
 			Path:  filepath.Join(home, ".codex"),
 			Agent: "codex",
+			Alias: "codex",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindContext: "",
@@ -54,6 +56,7 @@ func KnownAgents() []config.Target {
 			Name:  "copilot",
 			Path:  filepath.Join(home, ".copilot"),
 			Agent: "copilot",
+			Alias: "copilot",
 			Subdirs: map[string]string{
 				source.KindContext: "",
 			},
@@ -62,6 +65,7 @@ func KnownAgents() []config.Target {
 			Name:  "gemini",
 			Path:  filepath.Join(home, ".gemini"),
 			Agent: "gemini",
+			Alias: "gemini",
 			Subdirs: map[string]string{
 				source.KindContext: "",
 			},
@@ -70,6 +74,7 @@ func KnownAgents() []config.Target {
 			Name:  "opencode",
 			Path:  filepath.Join(home, ".config", "opencode"),
 			Agent: "opencode",
+			Alias: "opencode",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindContext: "",
@@ -79,6 +84,7 @@ func KnownAgents() []config.Target {
 			Name:  "agents",
 			Path:  filepath.Join(home, ".agents"),
 			Agent: "agents",
+			Alias: "agents",
 			Subdirs: map[string]string{
 				source.KindSkill:   "skills",
 				source.KindContext: "",
@@ -101,12 +107,14 @@ func Discover() []config.Target {
 }
 
 // TargetFor constructs a Target for the given agent type, path, and name.
+// Alias is set to agentName so targets of the same agent type can be grouped.
 // Subdirs is left nil so SubdirFor and SupportsKind derive defaults from the
-// agent profile. Callers can override Subdirs after construction if needed.
+// agent profile. Callers can override fields after construction if needed.
 func TargetFor(agentName, path, targetName string) config.Target {
 	return config.Target{
 		Name:  targetName,
 		Path:  path,
 		Agent: agentName,
+		Alias: agentName,
 	}
 }

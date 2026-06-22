@@ -80,6 +80,40 @@ func TestSubdirForWithAgentProfile(t *testing.T) {
 	}
 }
 
+func TestAliasRoundtrip(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/config.json"
+
+	cfg := config.Config{
+		Source:          dir,
+		DefaultStrategy: config.StrategyLink,
+		Targets: []config.Target{
+			{Name: "claude-personal", Path: "/tmp/cp", Agent: "claude", Alias: "claude"},
+			{Name: "claude-work", Path: "/tmp/cw", Agent: "claude", Alias: "claude"},
+			{Name: "codex", Path: "/tmp/codex", Agent: "codex"}, // no alias
+		},
+	}
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	loaded, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(loaded.Targets) != 3 {
+		t.Fatalf("expected 3 targets, got %d", len(loaded.Targets))
+	}
+	if loaded.Targets[0].Alias != "claude" {
+		t.Errorf("targets[0].Alias: want %q got %q", "claude", loaded.Targets[0].Alias)
+	}
+	if loaded.Targets[1].Alias != "claude" {
+		t.Errorf("targets[1].Alias: want %q got %q", "claude", loaded.Targets[1].Alias)
+	}
+	if loaded.Targets[2].Alias != "" {
+		t.Errorf("targets[2].Alias: want empty, got %q", loaded.Targets[2].Alias)
+	}
+}
+
 func TestSubdirForExplicitSubdirsNoFallthrough(t *testing.T) {
 	// When Subdirs is explicitly set, SubdirFor must not fall through to the
 	// agent profile for missing keys. SupportsKind and SubdirFor must agree.

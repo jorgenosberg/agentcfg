@@ -397,8 +397,8 @@ func (o *confirmOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 
 func (o *confirmOverlay) View(w int) string {
 	content := o.detail + "\n\n" +
-		tabActiveStyle.Render("[ y ]")+" confirm  "+
-		dimStyle.Render("[ n / esc ]")+" cancel"
+		tabActiveStyle.Render("[ y ]") + " confirm  " +
+		dimStyle.Render("[ n / esc ]") + " cancel"
 	return renderOverlayBox(w, content, o.title, 52)
 }
 
@@ -409,8 +409,9 @@ type addTargetOverlay struct {
 	cfg       config.Config
 	name      textinput.Model
 	path      textinput.Model
+	alias     textinput.Model
 	agentType string // selected agent type; "" = none
-	focused   int    // 0=name, 1=path, 2=agentType
+	focused   int    // 0=name, 1=path, 2=agentType, 3=alias
 	errMsg    string
 }
 
@@ -439,17 +440,22 @@ func nextAgent(current string) string {
 
 func newAddTargetOverlay(cfgPath string, cfg config.Config) (*addTargetOverlay, tea.Cmd) {
 	name := textinput.New()
-	name.Placeholder = `e.g. "claude"`
-	name.Prompt = "Name: "
+	name.Placeholder = `e.g. "claude-work"`
+	name.Prompt = "Name:  "
 	name.PromptStyle = dimStyle
 	name.Width = 38
 	path := textinput.New()
 	path.Placeholder = "absolute path to agent config dir"
-	path.Prompt = "Path: "
+	path.Prompt = "Path:  "
 	path.PromptStyle = dimStyle
 	path.Width = 38
+	alias := textinput.New()
+	alias.Placeholder = `e.g. "claude" to group with other Claude targets`
+	alias.Prompt = "Alias: "
+	alias.PromptStyle = dimStyle
+	alias.Width = 38
 	cmd := name.Focus()
-	return &addTargetOverlay{cfgPath: cfgPath, cfg: cfg, name: name, path: path}, cmd
+	return &addTargetOverlay{cfgPath: cfgPath, cfg: cfg, name: name, path: path, alias: alias}, cmd
 }
 
 func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
@@ -462,11 +468,11 @@ func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 			return nil, nil
 		case "tab", "down":
 			o.blurCurrent()
-			o.focused = (o.focused + 1) % 3
+			o.focused = (o.focused + 1) % 4
 			return o, o.focusCurrent()
 		case "shift+tab", "up":
 			o.blurCurrent()
-			o.focused = (o.focused - 1 + 3) % 3
+			o.focused = (o.focused - 1 + 4) % 4
 			return o, o.focusCurrent()
 		case "left":
 			if o.focused == 2 {
@@ -479,17 +485,12 @@ func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 				return o, nil
 			}
 		case "enter":
-			if o.focused == 0 {
+			if o.focused < 3 {
 				o.blurCurrent()
-				o.focused = 1
+				o.focused++
 				return o, o.focusCurrent()
 			}
-			if o.focused == 1 {
-				o.blurCurrent()
-				o.focused = 2
-				return o, o.focusCurrent()
-			}
-			// focused == 2: submit
+			// focused == 3: submit
 			name := strings.TrimSpace(o.name.Value())
 			rawPath := strings.TrimSpace(o.path.Value())
 			if name == "" || rawPath == "" {
@@ -508,23 +509,32 @@ func (o *addTargetOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 			}
 			cfg := o.cfg
 			t := catalog.TargetFor(o.agentType, abs, name)
+			if a := strings.TrimSpace(o.alias.Value()); a != "" {
+				t.Alias = a
+			}
 			cfg.Targets = append(cfg.Targets, t)
 			cfgPath := o.cfgPath
 			return nil, func() tea.Msg { return cfgReloadMsg{err: config.Save(cfgPath, cfg)} }
 		}
 		var cmd tea.Cmd
-		if o.focused == 0 {
+		switch o.focused {
+		case 0:
 			o.name, cmd = o.name.Update(msg)
-		} else if o.focused == 1 {
+		case 1:
 			o.path, cmd = o.path.Update(msg)
+		case 3:
+			o.alias, cmd = o.alias.Update(msg)
 		}
 		return o, cmd
 	default:
 		var cmd tea.Cmd
-		if o.focused == 0 {
+		switch o.focused {
+		case 0:
 			o.name, cmd = o.name.Update(msg)
-		} else if o.focused == 1 {
+		case 1:
 			o.path, cmd = o.path.Update(msg)
+		case 3:
+			o.alias, cmd = o.alias.Update(msg)
 		}
 		return o, cmd
 	}
@@ -536,6 +546,8 @@ func (o *addTargetOverlay) blurCurrent() {
 		o.name.Blur()
 	case 1:
 		o.path.Blur()
+	case 3:
+		o.alias.Blur()
 	}
 }
 
@@ -545,6 +557,8 @@ func (o *addTargetOverlay) focusCurrent() tea.Cmd {
 		return o.name.Focus()
 	case 1:
 		return o.path.Focus()
+	case 3:
+		return o.alias.Focus()
 	}
 	return nil
 }
@@ -587,11 +601,20 @@ func (o *addTargetOverlay) View(w int) string {
 	}
 	sb.WriteString("\n\n")
 
+	// Alias field (optional)
+	if o.focused == 3 {
+		sb.WriteString(cursorStyle.Render("▶ "))
+	} else {
+		sb.WriteString("  ")
+	}
+	sb.WriteString(o.alias.View())
+	sb.WriteString("\n\n")
+
 	if o.errMsg != "" {
 		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render("  "+o.errMsg) + "\n\n")
 	}
-	sb.WriteString(dimStyle.Render("tab next field · ←/→ cycle agent · enter submit · esc cancel"))
-	return renderOverlayBox(w, sb.String(), "Add target", 56)
+	sb.WriteString(dimStyle.Render("tab next field · ←/→ cycle agent · enter/tab confirm · esc cancel"))
+	return renderOverlayBox(w, sb.String(), "Add target", 62)
 }
 
 // ── addProjectOverlay ─────────────────────────────────────────────────────────
@@ -795,11 +818,11 @@ func (o *discoverOverlay) View(w int) string {
 type wizardStep int
 
 const (
-	wizardStepSource  wizardStep = iota
-	wizardStepTargets            // multi-select discovered agents
-	wizardStepItems              // multi-select items to import (may be skipped)
-	wizardStepProject            // confirm add project
-	wizardStepProjDetails        // name+path inputs (only if addProject=true)
+	wizardStepSource      wizardStep = iota
+	wizardStepTargets                // multi-select discovered agents
+	wizardStepItems                  // multi-select items to import (may be skipped)
+	wizardStepProject                // confirm add project
+	wizardStepProjDetails            // name+path inputs (only if addProject=true)
 )
 
 type wizardItem struct {
@@ -827,9 +850,9 @@ type initWizardOverlay struct {
 	addProject bool
 
 	// step: project details
-	projName   textinput.Model
-	projPath   textinput.Model
-	projFocus  int
+	projName  textinput.Model
+	projPath  textinput.Model
+	projFocus int
 
 	errMsg string
 }

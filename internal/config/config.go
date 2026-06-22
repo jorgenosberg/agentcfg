@@ -48,6 +48,7 @@ type Target struct {
 	Name     string            `json:"name"`
 	Path     string            `json:"path"`
 	Agent    string            `json:"agent,omitempty"`    // agent type: "claude", "codex", etc.
+	Alias    string            `json:"alias,omitempty"`    // optional group name; multiple targets may share one alias
 	Strategy string            `json:"strategy,omitempty"` // overrides Config.DefaultStrategy
 	Subdirs  map[string]string `json:"subdirs,omitempty"`  // per-kind subdir overrides
 	Exclude  []string          `json:"exclude,omitempty"`  // "kind/name" pairs to skip, e.g. "context/GEMINI.md"
@@ -213,4 +214,3 @@ func Save(path string, c Config) error {
 	body = append(body, '\n')
 	return os.WriteFile(path, body, 0o644)
 }
-

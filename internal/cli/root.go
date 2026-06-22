@@ -543,10 +543,10 @@ func newTargetCmd(load func() (config.Config, error), pathOf func() (string, err
 					return err
 				}
 				tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-				fmt.Fprintln(tw, "NAME\tAGENT\tPATH\tSTRATEGY")
+				fmt.Fprintln(tw, "NAME\tAGENT\tALIAS\tPATH\tSTRATEGY")
 				for _, t := range cfg.Targets {
-					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
-						t.Name, t.Agent, t.Path, t.ResolveStrategy(cfg.DefaultStrategy))
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+						t.Name, t.Agent, t.Alias, t.Path, t.ResolveStrategy(cfg.DefaultStrategy))
 				}
 				return tw.Flush()
 			},
@@ -591,7 +591,7 @@ func newTargetCmd(load func() (config.Config, error), pathOf func() (string, err
 }
 
 func newTargetAddCmd(load func() (config.Config, error), pathOf func() (string, error)) *cobra.Command {
-	var strategy, agentType string
+	var strategy, agentType, alias string
 	c := &cobra.Command{
 		Use:   "add <name> <path>",
 		Short: "Add a sync target",
@@ -609,6 +609,9 @@ func newTargetAddCmd(load func() (config.Config, error), pathOf func() (string, 
 			}
 			t := catalog.TargetFor(agentType, args[1], name)
 			t.Strategy = strategy
+			if alias != "" {
+				t.Alias = alias
+			}
 			cfg.Targets = append(cfg.Targets, t)
 			p, err := pathOf()
 			if err != nil {
@@ -623,6 +626,7 @@ func newTargetAddCmd(load func() (config.Config, error), pathOf func() (string, 
 	}
 	c.Flags().StringVar(&strategy, "strategy", "", "link or copy (default: config default)")
 	c.Flags().StringVar(&agentType, "agent", "", "agent type profile: claude, codex, copilot, gemini, cursor, cline, windsurf, aider, agents, opencode")
+	c.Flags().StringVar(&alias, "alias", "", "group alias (e.g. 'claude' to group multiple Claude targets together)")
 	return c
 }
 
@@ -960,12 +964,13 @@ func selectTargets(all []config.Target, name string) []config.Target {
 	if name == "" {
 		return all
 	}
+	var out []config.Target
 	for _, t := range all {
-		if t.Name == name {
-			return []config.Target{t}
+		if t.Name == name || (t.Alias != "" && t.Alias == name) {
+			out = append(out, t)
 		}
 	}
-	return nil
+	return out
 }
 
 func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
@@ -1187,4 +1192,3 @@ func newBackupCmd(load func() (config.Config, error)) *cobra.Command {
 	c.RunE = create.RunE
 	return c
 }
-
