@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -1489,6 +1490,82 @@ func (m model) buildSourceItemActions() []paletteAction {
 				), nil
 			},
 		})
+	}
+
+	// Editor and versioning — always shown for source items
+	{
+		item := g.Item
+		actions = append(actions, paletteAction{
+			label: "Open in editor",
+			fn: func() (overlayModel, tea.Cmd) {
+				editor := os.Getenv("VISUAL")
+				if editor == "" {
+					editor = os.Getenv("EDITOR")
+				}
+				if editor == "" {
+					editor = "vi"
+				}
+				c := exec.Command(editor, item.Path)
+				return nil, tea.ExecProcess(c, func(err error) tea.Msg {
+					if err != nil {
+						return cfgReloadMsg{err: err}
+					}
+					return cfgReloadMsg{status: "editor closed"}
+				})
+			},
+		})
+
+		actions = append(actions, paletteAction{
+			label: "Save as version",
+			fn: func() (overlayModel, tea.Cmd) {
+				o, cmd := newSaveVersionOverlay(item)
+				return o, cmd
+			},
+		})
+
+		versions, _ := source.ListVersions(item.Path)
+		if len(versions) > 0 {
+			versionActions := make([]paletteAction, len(versions))
+			for i, v := range versions {
+				versionActions[i] = paletteAction{
+					label: v,
+					fn: func() (overlayModel, tea.Cmd) {
+						return nil, func() tea.Msg {
+							if err := source.SwitchVersion(item.Path, v); err != nil {
+								return cfgReloadMsg{err: err}
+							}
+							return cfgReloadMsg{status: fmt.Sprintf("switched to version %q", v)}
+						}
+					},
+				}
+			}
+			actions = append(actions, paletteAction{
+				label: fmt.Sprintf("Switch version (%d saved)", len(versions)),
+				fn: func() (overlayModel, tea.Cmd) {
+					return newPaletteOverlay("Switch version", versionActions), nil
+				},
+			})
+
+			deleteActions := make([]paletteAction, len(versions))
+			for i, v := range versions {
+				deleteActions[i] = paletteAction{
+					label: v,
+					fn: func() (overlayModel, tea.Cmd) {
+						return newConfirmOverlay(
+							fmt.Sprintf("Delete version %q?", v),
+							"Removes the saved version. The active item is unchanged.",
+							func() error { return source.DeleteVersion(item.Path, v) },
+						), nil
+					},
+				}
+			}
+			actions = append(actions, paletteAction{
+				label: "Delete version",
+				fn: func() (overlayModel, tea.Cmd) {
+					return newPaletteOverlay("Delete version", deleteActions), nil
+				},
+			})
+		}
 	}
 
 	return actions

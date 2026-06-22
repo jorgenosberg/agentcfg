@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -71,6 +72,8 @@ func NewRoot() *cobra.Command {
 		newUnmanageCmd(resolveCfg, resolvePath),
 		newSyncCmd(resolveCfg),
 		newBackupCmd(resolveCfg),
+		newEditCmd(resolveCfg),
+		newVersionCmd(resolveCfg),
 		newInitCmd(&configPath),
 		newTargetCmd(resolveCfg, resolvePath),
 		newDiscoverCmd(resolveCfg, resolvePath),
@@ -1076,6 +1079,159 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 	c.Flags().BoolVar(&noBackup, "no-backup", false, "skip automatic backup before syncing")
 	c.Flags().BoolVar(&force, "force", false, "adopt unmanaged files (replace existing files not managed by agentcfg)")
 	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")
+	return c
+}
+
+func newEditCmd(load func() (config.Config, error)) *cobra.Command {
+	return &cobra.Command{
+		Use:   "edit <item>",
+		Short: "Open a source item in your editor",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			items, err := source.Scan(cfg.Source)
+			if err != nil {
+				return err
+			}
+			for _, it := range items {
+				if it.Name == args[0] {
+					return openInEditor(it.Path)
+				}
+			}
+			return fmt.Errorf("item %q not found in source", args[0])
+		},
+	}
+}
+
+func openInEditor(path string) error {
+	editor := os.Getenv("VISUAL")
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+	if editor == "" {
+		editor = "vi"
+	}
+	c := exec.Command(editor, path)
+	c.Stdin = os.Stdin
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	return c.Run()
+}
+
+func newVersionCmd(load func() (config.Config, error)) *cobra.Command {
+	findItem := func(cfg config.Config, name string) (source.Item, error) {
+		items, err := source.Scan(cfg.Source)
+		if err != nil {
+			return source.Item{}, err
+		}
+		for _, it := range items {
+			if it.Name == name {
+				return it, nil
+			}
+		}
+		return source.Item{}, fmt.Errorf("item %q not found in source", name)
+	}
+
+	c := &cobra.Command{
+		Use:   "version",
+		Short: "Manage saved versions of source items",
+	}
+
+	list := &cobra.Command{
+		Use:   "list <item>",
+		Short: "List saved versions",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			it, err := findItem(cfg, args[0])
+			if err != nil {
+				return err
+			}
+			versions, err := source.ListVersions(it.Path)
+			if err != nil {
+				return err
+			}
+			if len(versions) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "no saved versions")
+				return nil
+			}
+			for _, v := range versions {
+				fmt.Fprintln(cmd.OutOrStdout(), v)
+			}
+			return nil
+		},
+	}
+
+	save := &cobra.Command{
+		Use:   "save <item> <name>",
+		Short: "Save the current item as a named version",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			it, err := findItem(cfg, args[0])
+			if err != nil {
+				return err
+			}
+			if err := source.SaveVersion(it.Path, args[1]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "saved %q as version %q\n", args[0], args[1])
+			return nil
+		},
+	}
+
+	switchCmd := &cobra.Command{
+		Use:   "switch <item> <name>",
+		Short: "Switch the active item to a saved version",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			it, err := findItem(cfg, args[0])
+			if err != nil {
+				return err
+			}
+			if err := source.SwitchVersion(it.Path, args[1]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "switched %q to version %q\n", args[0], args[1])
+			return nil
+		},
+	}
+
+	deleteCmd := &cobra.Command{
+		Use:   "delete <item> <name>",
+		Short: "Delete a saved version",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := load()
+			if err != nil {
+				return err
+			}
+			it, err := findItem(cfg, args[0])
+			if err != nil {
+				return err
+			}
+			if err := source.DeleteVersion(it.Path, args[1]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "deleted version %q of %q\n", args[1], args[0])
+			return nil
+		},
+	}
+
+	c.AddCommand(list, save, switchCmd, deleteCmd)
 	return c
 }
 
