@@ -51,12 +51,18 @@ func SaveVersion(itemPath, name string) error {
 }
 
 // SwitchVersion replaces the active item with the named saved version.
-// The switch is atomic on the file level: a temporary copy is made first,
-// then the active item is replaced.
+// Before switching, the current active content is saved as "previous" so it
+// can be recovered if needed. The switch itself is atomic at the file level.
 func SwitchVersion(itemPath, name string) error {
 	src := filepath.Join(VersionsDir(itemPath), name)
 	if _, err := os.Stat(src); err != nil {
 		return fmt.Errorf("version %q not found", name)
+	}
+	// Auto-save current state before replacing it.
+	if _, err := os.Stat(itemPath); err == nil {
+		if err := SaveVersion(itemPath, "previous"); err != nil {
+			return fmt.Errorf("save previous: %w", err)
+		}
 	}
 	tmp := itemPath + ".agentcfg-swap"
 	if err := vcopyAny(src, tmp); err != nil {

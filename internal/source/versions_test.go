@@ -111,6 +111,42 @@ func TestSwitchVersion(t *testing.T) {
 	}
 }
 
+func TestSwitchVersionAutoSavesPrevious(t *testing.T) {
+	dir := t.TempDir()
+	item := filepath.Join(dir, "CLAUDE.md")
+	writeFile(t, item, "original")
+
+	if err := source.SaveVersion(item, "v1"); err != nil {
+		t.Fatalf("SaveVersion: %v", err)
+	}
+	writeFile(t, item, "modified")
+
+	if err := source.SwitchVersion(item, "v1"); err != nil {
+		t.Fatalf("SwitchVersion: %v", err)
+	}
+
+	// Active should now be v1 content.
+	if got := readFile(t, item); got != "original" {
+		t.Errorf("active after switch: want %q got %q", "original", got)
+	}
+
+	// "previous" should hold what was there before the switch.
+	versions, _ := source.ListVersions(item)
+	found := false
+	for _, v := range versions {
+		if v == "previous" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected a %q version to be auto-saved, got %v", "previous", versions)
+	}
+	prevPath := filepath.Join(source.VersionsDir(item), "previous")
+	if got := readFile(t, prevPath); got != "modified" {
+		t.Errorf("previous version content: want %q got %q", "modified", got)
+	}
+}
+
 func TestSwitchVersionNotFound(t *testing.T) {
 	dir := t.TempDir()
 	item := filepath.Join(dir, "CLAUDE.md")
