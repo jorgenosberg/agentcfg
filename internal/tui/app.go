@@ -18,9 +18,13 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/jorgenosberg/agentcfg/internal/backup"
+	"github.com/jorgenosberg/agentcfg/internal/claudecfg"
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/fork"
+	"github.com/jorgenosberg/agentcfg/internal/forks"
 	"github.com/jorgenosberg/agentcfg/internal/icons"
 	"github.com/jorgenosberg/agentcfg/internal/lock"
+	"github.com/jorgenosberg/agentcfg/internal/plugins"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 	"github.com/jorgenosberg/agentcfg/internal/version"
@@ -32,6 +36,7 @@ const (
 	viewAgentcfg     viewMode = iota // items managed in agentcfg source
 	viewAgentFolders                 // items actually in agent/target directories
 	viewProjects                     // project-local agent configuration files
+	viewPlugins                      // installed Claude Code plugins
 )
 
 const (
@@ -76,6 +81,10 @@ type model struct {
 	entries       []sync.Entry
 	targetEntries []sync.Entry
 	projectItems  []source.ProjectItem
+	pluginReg     *plugins.Registry
+	forkFile      *forks.ForkFile
+	forksPath     string
+	settingsPath  string
 	cursor        int
 	offset        int
 	width         int
@@ -106,15 +115,72 @@ type previewMeta struct {
 }
 
 func newModel(cfgPath string, cfg config.Config, items []source.Item, projectItems []source.ProjectItem) model {
+	pluginReg, _ := plugins.Load()
+	forksPath, _ := forks.DefaultPath()
+	forkFile, _ := forks.Load(forksPath)
+	settingsPath, _ := claudecfgDefaultPath()
+	baseEntries := sync.Inspect(cfg, items)
+	ghosts := synthesizeGhosts(pluginReg, forkFile, cfg, items)
 	return model{
 		cfgPath:       cfgPath,
 		cfg:           cfg,
 		items:         items,
-		entries:       sync.Inspect(cfg, items),
+		entries:       append(baseEntries, ghosts...),
 		targetEntries: sync.ScanTargetDirs(cfg, items),
 		projectItems:  projectItems,
+		pluginReg:     pluginReg,
+		forkFile:      forkFile,
+		forksPath:     forksPath,
+		settingsPath:  settingsPath,
 		status:        "ready",
 	}
+}
+
+func claudecfgDefaultPath() (string, error) {
+	return claudecfg.DefaultPath()
+}
+
+// synthesizeGhosts creates ghost entries for skills that belong to disabled
+// plugins but are not present in the agentcfg source tree. These appear in
+// the main view so nothing silently disappears when a plugin is disabled.
+func synthesizeGhosts(reg *plugins.Registry, ff *forks.ForkFile, cfg config.Config, managedItems []source.Item) []sync.Entry {
+	if reg == nil || len(cfg.Targets) == 0 {
+		return nil
+	}
+	managed := make(map[string]bool, len(managedItems))
+	for _, it := range managedItems {
+		if it.Kind == source.KindSkill {
+			managed[it.Name] = true
+		}
+	}
+	var out []sync.Entry
+	for _, p := range reg.Plugins {
+		if p.Enabled {
+			continue
+		}
+		for _, skillName := range p.Skills {
+			if managed[skillName] {
+				continue
+			}
+			forked := ff.IsForked(p.FullName, skillName)
+			for _, t := range cfg.Targets {
+				out = append(out, sync.Entry{
+					Target: t,
+					Item: source.Item{
+						Kind: source.KindSkill,
+						Name: skillName,
+						Path: "",
+					},
+					Status: sync.StatusPluginSibling,
+					Plugin: &sync.PluginRef{
+						FullName: p.FullName,
+						Forked:   forked,
+					},
+				})
+			}
+		}
+	}
+	return out
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -201,6 +267,11 @@ func (m model) currentLen() int {
 		return len(m.projectItems)
 	case viewAgentFolders:
 		return len(m.filteredTargetEntries())
+	case viewPlugins:
+		if m.pluginReg == nil {
+			return 0
+		}
+		return len(m.pluginReg.Plugins)
 	default: // viewAgentcfg
 		return len(m.groupedItems())
 	}
@@ -291,7 +362,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cfg = cfg
 		items, _ := source.Scan(cfg.Source)
 		m.items = items
-		m.entries = sync.Inspect(cfg, items)
+		m.pluginReg, _ = plugins.Load()
+		m.forkFile, _ = forks.Load(m.forksPath)
+		baseEntries := sync.Inspect(cfg, items)
+		ghosts := synthesizeGhosts(m.pluginReg, m.forkFile, cfg, items)
+		m.entries = append(baseEntries, ghosts...)
 		m.targetEntries = sync.ScanTargetDirs(cfg, items)
 		m.projectItems = scanAllProjects(cfg)
 		if n := m.currentLen(); m.cursor >= n {
@@ -330,6 +405,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mode = viewAgentFolders
 			case viewAgentFolders:
 				m.mode = viewProjects
+			case viewProjects:
+				m.mode = viewPlugins
 			default:
 				m.mode = viewAgentcfg
 			}
@@ -338,6 +415,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				viewAgentcfg:     "source view",
 				viewAgentFolders: "agents view",
 				viewProjects:     "projects view",
+				viewPlugins:      "plugins view",
 			}[m.mode]
 		case "j", "down":
 			m.filterFocus = focusNone
@@ -469,12 +547,14 @@ var (
 	hintKeyStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
 	hintDescStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 
-	statusLinkedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
-	statusCopiedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
-	statusDriftedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	statusAbsentStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	statusUnmanagedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	statusDisabledStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
+	statusLinkedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
+	statusCopiedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
+	statusDriftedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	statusAbsentStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	statusUnmanagedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	statusDisabledStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
+	statusPluginOwnedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	statusPluginSiblingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Faint(true)
 )
 
 func renderStatus(s sync.Status) string {
@@ -491,9 +571,23 @@ func renderStatus(s sync.Status) string {
 		return statusUnmanagedStyle.Render(string(s))
 	case sync.StatusDisabled:
 		return statusDisabledStyle.Render("off")
+	case sync.StatusPluginOwned:
+		return statusPluginOwnedStyle.Render("plugin")
+	case sync.StatusPluginSibling:
+		return statusPluginSiblingStyle.Render("sibling")
 	default:
 		return string(s)
 	}
+}
+
+func renderPluginStatus(p plugins.Plugin, ff *forks.ForkFile) string {
+	if ff != nil && ff.PluginForked(p.FullName) {
+		return statusCopiedStyle.Render("forked ✓")
+	}
+	if p.Enabled {
+		return statusLinkedStyle.Render("enabled")
+	}
+	return statusDisabledStyle.Render("disabled")
 }
 
 func (m model) renderMainView() string {
@@ -551,6 +645,8 @@ func (m model) buildContentRows(lh, leftIW int) []string {
 		return m.buildGroupedRows(lh, leftIW)
 	case viewAgentFolders:
 		return m.buildAgentFolderRows(lh, leftIW)
+	case viewPlugins:
+		return m.buildPluginRows(lh, leftIW)
 	default: // viewProjects
 		return m.buildProjectsRows(lh, leftIW)
 	}
@@ -568,7 +664,8 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 	sep := borderStyle.Render(" · ")
 	tabs := tab("Source", m.mode == viewAgentcfg) + sep +
 		tab("Agents", m.mode == viewAgentFolders) + sep +
-		tab("Projects", m.mode == viewProjects)
+		tab("Projects", m.mode == viewProjects) + sep +
+		tab("Plugins", m.mode == viewPlugins)
 	tabsVis := lipgloss.Width(tabs)
 	padW := max(0, leftIW-tabsVis-3)
 	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+"─┐")
@@ -677,9 +774,22 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 		lines = append(lines, buildBottom())
 		return lines
 
-	default: // viewProjects
+	case viewProjects:
 		emptyRow := aR("│") + padToWidth("", leftIW) + aR("│")
 		headerContent := "  " + fmt.Sprintf("%-16s%-10s  %-7s  %-24s  %s", "PROJECT", "AGENT", "TYPE", "NAME", "PATH")
+		headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
+		contentRows := m.buildContentRows(max(0, lh-2), leftIW)
+		lines := make([]string, 0, lh+5)
+		lines = append(lines, topBorder, emptyRow, sepRow, headerRow)
+		for _, row := range contentRows {
+			lines = append(lines, aR("│")+padToWidth(row, leftIW)+aR("│"))
+		}
+		lines = append(lines, buildBottom())
+		return lines
+
+	default: // viewPlugins
+		emptyRow := aR("│") + padToWidth("", leftIW) + aR("│")
+		headerContent := "  " + fmt.Sprintf("%-10s  %-24s  %-28s  %s", "STATUS", "NAME", "MARKETPLACE", "COMPONENTS")
 		headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
 		contentRows := m.buildContentRows(max(0, lh-2), leftIW)
 		lines := make([]string, 0, lh+5)
@@ -935,6 +1045,10 @@ func (m model) renderBadgeCells(g groupedItem, leftIW int) string {
 				sym, st = "!", statusUnmanagedStyle
 			case sync.StatusDisabled:
 				sym, st = "○", statusDisabledStyle
+			case sync.StatusPluginSibling:
+				sym, st = "p", statusPluginSiblingStyle
+			case sync.StatusPluginOwned:
+				sym, st = "↑", statusPluginOwnedStyle
 			default:
 				sym, st = "─", dimStyle
 			}
@@ -1059,6 +1173,54 @@ func (m model) buildProjectsRows(lh, leftIW int) []string {
 	return rows
 }
 
+func (m model) buildPluginRows(lh, leftIW int) []string {
+	rows := make([]string, 0, lh)
+	if m.pluginReg == nil || len(m.pluginReg.Plugins) == 0 {
+		rows = append(rows, dimStyle.Render("  no Claude Code plugins found"))
+		for len(rows) < lh {
+			rows = append(rows, "")
+		}
+		return rows
+	}
+	end := min(m.offset+lh, len(m.pluginReg.Plugins))
+	for i := m.offset; i < end; i++ {
+		p := m.pluginReg.Plugins[i]
+		statusStr := renderPluginStatus(p, m.forkFile)
+		statusVis := lipgloss.Width(statusStr)
+		marketplaceVis := min(28, len([]rune(p.Marketplace)))
+		marketplace := padToWidth(truncateRunes(p.Marketplace, marketplaceVis), marketplaceVis)
+		// component summary: "3s 1h 2m" for skills/hooks/mcp
+		var compParts []string
+		if n := len(p.Skills); n > 0 {
+			compParts = append(compParts, fmt.Sprintf("%ds", n))
+		}
+		if n := len(p.Hooks); n > 0 {
+			compParts = append(compParts, fmt.Sprintf("%dh", n))
+		}
+		if n := len(p.MCPServers); n > 0 {
+			compParts = append(compParts, fmt.Sprintf("%dm", n))
+		}
+		if n := len(p.LSPServers); n > 0 {
+			compParts = append(compParts, fmt.Sprintf("%dl", n))
+		}
+		comps := dimStyle.Render(strings.Join(compParts, " "))
+		compsVis := lipgloss.Width(comps)
+		// cursor(2) + status(10) + "  "(2) + name + "  "(2) + marketplace(28) + "  "(2) + comps
+		nameMax := max(4, leftIW-2-statusVis-2-marketplaceVis-2-2-compsVis)
+		name := padToWidth(truncateRunes(p.Name, nameMax), nameMax)
+		row := "  " + statusStr + "  " + name + "  " + marketplace + "  " + comps
+		if i == m.cursor {
+			rows = append(rows, withBg(padToWidth(row, leftIW)))
+		} else {
+			rows = append(rows, row)
+		}
+	}
+	for len(rows) < lh {
+		rows = append(rows, "")
+	}
+	return rows
+}
+
 func (m model) buildPreviewLines(lh, w int) []string {
 	path, isDir, ok := m.currentPreviewPath()
 	var raw []string
@@ -1076,12 +1238,28 @@ func (m model) buildPreviewLines(lh, w int) []string {
 
 func (m model) currentPreviewPath() (path string, isDir bool, ok bool) {
 	switch m.mode {
+	case viewPlugins:
+		// Plugins view: preview the plugin's skill file from the cache when possible.
+		if m.pluginReg == nil || m.cursor >= len(m.pluginReg.Plugins) {
+			return "", false, false
+		}
+		p := m.pluginReg.Plugins[m.cursor]
+		if p.InstallPath != "" && len(p.Skills) > 0 {
+			skillPath := filepath.Join(p.InstallPath, "skills", p.Skills[0], "SKILL.md")
+			if _, err := os.Stat(skillPath); err == nil {
+				return skillPath, false, true
+			}
+		}
+		return "", false, false
 	case viewAgentcfg:
 		grouped := m.groupedItems()
 		if m.cursor >= len(grouped) {
 			return "", false, false
 		}
 		item := grouped[m.cursor].Item
+		if item.Path == "" {
+			return "", false, false // ghost entry
+		}
 		if item.Kind == source.KindSkill {
 			return filepath.Join(item.Path, "SKILL.md"), false, true
 		}
@@ -1300,6 +1478,11 @@ func (m model) currentItemTitle() string {
 			it := m.projectItems[m.cursor]
 			return it.Project + " · " + it.Name
 		}
+	case viewPlugins:
+		if m.pluginReg != nil && m.cursor < len(m.pluginReg.Plugins) {
+			p := m.pluginReg.Plugins[m.cursor]
+			return "plugin · " + p.FullName
+		}
 	}
 	return "Actions"
 }
@@ -1312,6 +1495,8 @@ func (m model) buildItemActions() []paletteAction {
 		return m.buildAgentItemActions()
 	case viewProjects:
 		return m.buildProjectItemActions()
+	case viewPlugins:
+		return m.buildPluginItemActions()
 	}
 	return nil
 }
@@ -1631,6 +1816,73 @@ func (m model) buildProjectItemActions() []paletteAction {
 			), nil
 		},
 	}}
+}
+
+func (m model) buildPluginItemActions() []paletteAction {
+	if m.pluginReg == nil || m.cursor >= len(m.pluginReg.Plugins) {
+		return nil
+	}
+	p := m.pluginReg.Plugins[m.cursor]
+	reg := m.pluginReg
+	ff := m.forkFile
+	forksPath := m.forksPath
+	settingsPath := m.settingsPath
+	sourceRoot := m.cfg.Source
+
+	var actions []paletteAction
+
+	if !ff.PluginForked(p.FullName) && p.Installed && len(p.Skills)+len(p.Hooks) > 0 {
+		plugin := p
+		actions = append(actions, paletteAction{
+			label: "Fork full plugin (copy all skills & hooks)",
+			fn: func() (overlayModel, tea.Cmd) {
+				return newForkOverlay(plugin, fork.ScopeFull, nil, sourceRoot, forksPath, settingsPath), nil
+			},
+		})
+		if len(p.Skills) > 0 {
+			plugin := p
+			actions = append(actions, paletteAction{
+				label: "Fork selected skills…",
+				fn: func() (overlayModel, tea.Cmd) {
+					return newForkSkillPickerOverlay(plugin, sourceRoot, forksPath, settingsPath, reg), nil
+				},
+			})
+		}
+	}
+
+	if p.Enabled {
+		plugin := p
+		actions = append(actions, paletteAction{
+			label: "Disable plugin",
+			fn: func() (overlayModel, tea.Cmd) {
+				return newConfirmOverlay(
+					fmt.Sprintf("Disable %q?", plugin.FullName),
+					"Prevents Claude Code from loading this plugin.",
+					func() error {
+						return claudecfg.SetPluginEnabled(settingsPath, plugin.FullName, false)
+					},
+				), nil
+			},
+		})
+	} else {
+		plugin := p
+		actions = append(actions, paletteAction{
+			label: "Enable plugin",
+			fn: func() (overlayModel, tea.Cmd) {
+				return newConfirmOverlay(
+					fmt.Sprintf("Enable %q?", plugin.FullName),
+					"Allows Claude Code to load this plugin.",
+					func() error {
+						return claudecfg.SetPluginEnabled(settingsPath, plugin.FullName, true)
+					},
+				), nil
+			},
+		})
+	}
+
+	_ = ff
+	_ = reg
+	return actions
 }
 
 func (m model) buildGlobalActions() []paletteAction {

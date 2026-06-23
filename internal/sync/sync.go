@@ -23,14 +23,23 @@ const (
 	StatusAbsent        Status = "absent"        // not installed
 	StatusNotApplicable Status = "n/a"           // target does not support this item kind
 	StatusDisabled      Status = "disabled"      // user has disabled this item for this target
+	StatusPluginOwned   Status = "plugin-owned"  // from an enabled plugin, not in agentcfg source
+	StatusPluginSibling Status = "plugin-sibling" // from a disabled plugin, not yet forked
 )
+
+// PluginRef identifies the Claude Code plugin that produced a ghost entry.
+type PluginRef struct {
+	FullName string // "plugin@marketplace"
+	Forked   bool   // true if this skill was already forked into agentcfg source
+}
 
 // Entry is the per-(target, item) state used for listing.
 type Entry struct {
 	Target config.Target
 	Item   source.Item
 	Status Status
-	Dest   string // resolved install path on target side
+	Dest   string     // resolved install path on target side
+	Plugin *PluginRef // non-nil for plugin-derived ghost entries only
 }
 
 // Inspect computes Entries for all items across all targets.
