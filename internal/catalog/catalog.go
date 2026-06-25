@@ -4,13 +4,16 @@
 // target is always explicit via `--add`.
 //
 // Sources (verified 2026-06):
-//   - Claude Code:  ~/.claude         (skills/, hooks/, CLAUDE.md)
-//   - Codex CLI:    ~/.codex          (AGENTS.md, AGENTS.override.md)
-//                   user-level skills go to ~/.agents/skills/ — covered by the agents entry
-//   - Copilot CLI:  ~/.copilot        (copilot-instructions.md)
-//   - Gemini CLI:   ~/.gemini         (GEMINI.md; extensions/ use a different format, not synced)
-//   - opencode:     ~/.config/opencode (skills/, AGENTS.md)
-//   - agents:       ~/.agents         (skills/, AGENTS.md) — shared by Codex, opencode, and Claude
+//   - Claude Code:    ~/.claude           (skills/, hooks/, CLAUDE.md)
+//   - Codex CLI:      ~/.codex            (AGENTS.md, AGENTS.override.md)
+//                     user-level skills go to ~/.agents/skills/ — covered by the agents entry
+//   - Copilot CLI:    ~/.copilot          (copilot-instructions.md)
+//   - Antigravity CLI (fka Gemini CLI):
+//                     ~/.gemini           (GEMINI.md — global context, unchanged from Gemini CLI)
+//                     ~/.gemini/antigravity-cli/skills/  (user-level skills; was ~/.gemini/skills/)
+//                     workspace skills:   .agents/skills/ — covered by the agents entry
+//   - opencode:       ~/.config/opencode  (skills/, AGENTS.md)
+//   - agents:         ~/.agents           (skills/, AGENTS.md) — shared by Codex, Antigravity, opencode
 package catalog
 
 import (
@@ -68,6 +71,7 @@ func KnownAgents() []config.Target {
 			Agent: "gemini",
 			Alias: "gemini",
 			Subdirs: map[string]string{
+				source.KindSkill:   "antigravity-cli/skills",
 				source.KindContext: "",
 			},
 		},
