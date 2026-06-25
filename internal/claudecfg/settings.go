@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 )
 
-// DefaultPath returns ~/.claude/settings.json.
+// DefaultPath returns the Claude Code settings file path.
 func DefaultPath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return "", err
 	}

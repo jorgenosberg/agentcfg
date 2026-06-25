@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 )
 
@@ -150,9 +151,9 @@ func Prune(root string, keep int) error {
 	return nil
 }
 
-// DefaultRoot returns ~/.agentcfg/backups.
+// DefaultRoot returns the agentcfg backups directory.
 func DefaultRoot() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return "", err
 	}

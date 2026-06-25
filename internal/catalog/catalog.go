@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 )
 
@@ -25,7 +26,7 @@ import (
 // A missing kind key in Subdirs means: do not scan that kind for this agent.
 // Context with subdir "" means: scan the agent root for *.md files.
 func KnownAgents() []config.Target {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return nil
 	}

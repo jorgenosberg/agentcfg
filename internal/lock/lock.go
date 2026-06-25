@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 )
 
 // Entry records a single installed item's hash and install time.
@@ -49,9 +51,9 @@ func Save(path string, l Lock) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// DefaultPath returns ~/.agentcfg/locks.json.
+// DefaultPath returns the agentcfg locks file path.
 func DefaultPath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return "", err
 	}

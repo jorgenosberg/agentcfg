@@ -14,8 +14,11 @@ LDFLAGS := -s -w \
   -X github.com/jorgenosberg/agentcfg/internal/version.Commit=$(COMMIT) \
   -X github.com/jorgenosberg/agentcfg/internal/version.Date=$(DATE)
 
+SANDBOX ?= $(CURDIR)/.sandbox
+
 .PHONY: all build agentcfg lazyagentcfg install uninstall \
-        check test vet lint fmt tidy clean run-tui watch
+        check test vet lint fmt tidy clean run-tui watch \
+        sandbox sandbox-cli sandbox-reset
 
 all: build
 
@@ -79,6 +82,20 @@ watch:
 		{ echo "watchexec not found — install: brew install watchexec"; exit 1; }
 	@mkdir -p bin/.watch
 	watchexec -e go -r -- ./scripts/watch-tui.sh
+
+## sandbox: build and run the TUI against an isolated sandbox home (never touches real config)
+sandbox: build
+	@mkdir -p "$(SANDBOX)"
+	@echo "sandbox home: $(SANDBOX)"
+	AGENTCFG_HOME="$(SANDBOX)" ./$(BINDIR)/lazyagentcfg
+
+## sandbox-cli: run a CLI command against the sandbox; e.g. make sandbox-cli ARGS="discover"
+sandbox-cli: build
+	AGENTCFG_HOME="$(SANDBOX)" ./$(BINDIR)/agentcfg $(ARGS)
+
+## sandbox-reset: wipe the sandbox home
+sandbox-reset:
+	rm -rf "$(SANDBOX)"
 
 ## help: list available targets
 help:

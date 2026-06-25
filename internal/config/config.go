@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/jorgenosberg/agentcfg/internal/agent"
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 )
 
@@ -137,7 +138,7 @@ var defaultSubdirs = map[string]string{
 
 // DefaultPath returns the canonical config file path.
 func DefaultPath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return "", err
 	}
@@ -147,7 +148,7 @@ func DefaultPath() (string, error) {
 // DefaultSource returns the agentcfg-owned source directory. Users can
 // populate it directly or symlink it to a path of their choice.
 func DefaultSource() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return "", err
 	}

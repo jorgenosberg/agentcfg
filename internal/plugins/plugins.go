@@ -6,22 +6,24 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 )
 
 // Plugin represents one Claude Code plugin and its current state.
 type Plugin struct {
-	Name        string
-	Marketplace string
-	FullName    string // "name@marketplace"
-	Installed   bool
-	Enabled     bool
-	InstallPath string // ~/.claude/plugins/cache/marketplace/plugin/version
-	Version     string
+	Name         string
+	Marketplace  string
+	FullName     string // "name@marketplace"
+	Installed    bool
+	Enabled      bool
+	InstallPath  string // ~/.claude/plugins/cache/marketplace/plugin/version
+	Version      string
 	GitCommitSha string
-	Skills      []string
-	Hooks       []string
-	MCPServers  []string
-	LSPServers  []string
+	Skills       []string
+	Hooks        []string
+	MCPServers   []string
+	LSPServers   []string
 }
 
 // Registry holds all known Claude Code plugins joined from the three state files.
@@ -29,9 +31,9 @@ type Registry struct {
 	Plugins []Plugin
 }
 
-// DefaultDir returns the ~/.claude/plugins directory.
+// DefaultDir returns the Claude Code plugins directory.
 func DefaultDir() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return "", err
 	}
@@ -122,7 +124,7 @@ type installedEntry struct {
 }
 
 type installedFile struct {
-	Version int                        `json:"version"`
+	Version int                         `json:"version"`
 	Plugins map[string][]installedEntry `json:"plugins"`
 }
 

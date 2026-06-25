@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 )
 
 // ForkFile is the on-disk schema for ~/.agentcfg/forks.json.
@@ -64,9 +66,9 @@ func Save(path string, f *ForkFile) error {
 	return os.WriteFile(path, raw, 0o644)
 }
 
-// DefaultPath returns ~/.agentcfg/forks.json.
+// DefaultPath returns the agentcfg forks file path.
 func DefaultPath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := paths.Home()
 	if err != nil {
 		return "", err
 	}

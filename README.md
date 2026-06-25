@@ -11,7 +11,7 @@ Two binaries:
 
 ## Status
 
-Early scaffold. Not yet usable.
+Personal-use tool, actively developed. No formal release yet (no Homebrew tap, no semver tags). Build from source with `make build`.
 
 ## Install
 
@@ -82,4 +82,29 @@ config file.
 
 ```sh
 make build
+```
+
+## Testing in a sandbox
+
+Set `AGENTCFG_HOME` to any directory and agentcfg will read and write only under that path — its own state (`~/.agentcfg/*`), the agent catalog (`~/.claude`, `~/.codex`, etc.), and Claude plugin reads/writes are all redirected. Your real configs are never touched.
+
+```sh
+make sandbox              # build + launch TUI with AGENTCFG_HOME=./.sandbox
+make sandbox-cli ARGS="init"
+make sandbox-cli ARGS="discover"
+make sandbox-reset        # wipe the sandbox
+```
+
+Or run directly:
+
+```sh
+AGENTCFG_HOME=/tmp/agentcfg-test agentcfg init
+AGENTCFG_HOME=/tmp/agentcfg-test lazyagentcfg
+```
+
+To exercise discover/sync with fake agent dirs, create them inside the sandbox home:
+
+```sh
+mkdir -p .sandbox/.claude/skills .sandbox/.codex
+make sandbox-cli ARGS="discover"
 ```

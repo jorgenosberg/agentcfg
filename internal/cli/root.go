@@ -32,7 +32,10 @@ func NewRoot() *cobra.Command {
 		Long: "agentcfg keeps a single source-of-truth directory in sync with one or " +
 			"more AI coding agent directories (Claude Code, Codex, Copilot, " +
 			"opencode, ...). Source path is user-configurable; default is " +
-			"~/.agentcfg/source.",
+			"~/.agentcfg/source.\n\n" +
+			"Set AGENTCFG_HOME to any directory to run in an isolated sandbox — " +
+			"all reads and writes (state, catalog, Claude plugin files) go there " +
+			"instead of the real $HOME.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.String(),
