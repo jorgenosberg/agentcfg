@@ -3,13 +3,14 @@
 // agentcfg uses this to power the `discover` command. Registration as a
 // target is always explicit via `--add`.
 //
-// Sources (verified 2026-05):
+// Sources (verified 2026-06):
 //   - Claude Code:  ~/.claude         (skills/, hooks/, CLAUDE.md)
-//   - Codex CLI:    ~/.codex          (skills/, AGENTS.md, AGENTS.override.md)
-//   - Copilot CLI:  ~/.copilot        (settings.json, mcp-config.json)
-//   - Gemini CLI:   ~/.gemini         (extensions/, GEMINI.md)
+//   - Codex CLI:    ~/.codex          (AGENTS.md, AGENTS.override.md)
+//                   user-level skills go to ~/.agents/skills/ — covered by the agents entry
+//   - Copilot CLI:  ~/.copilot        (copilot-instructions.md)
+//   - Gemini CLI:   ~/.gemini         (GEMINI.md; extensions/ use a different format, not synced)
 //   - opencode:     ~/.config/opencode (skills/, AGENTS.md)
-//   - agents (opencode/Claude compat): ~/.agents (skills/, AGENTS.md)
+//   - agents:       ~/.agents         (skills/, AGENTS.md) — shared by Codex, opencode, and Claude
 package catalog
 
 import (
@@ -49,7 +50,6 @@ func KnownAgents() []config.Target {
 			Agent: "codex",
 			Alias: "codex",
 			Subdirs: map[string]string{
-				source.KindSkill:   "skills",
 				source.KindContext: "",
 			},
 		},
