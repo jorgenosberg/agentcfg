@@ -21,9 +21,9 @@ func writeJSON(t *testing.T, path string, v any) {
 }
 
 func TestLoad_EmptyWhenMissing(t *testing.T) {
-	// Point DefaultDir at a nonexistent path by setting HOME to an empty dir.
+	// AGENTCFG_HOME redirects paths.Home() so DefaultDir resolves under the sandbox.
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	t.Setenv("AGENTCFG_HOME", tmp)
 	reg, err := plugins.Load()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -35,7 +35,7 @@ func TestLoad_EmptyWhenMissing(t *testing.T) {
 
 func TestLoad_MergesThreeFiles(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	t.Setenv("AGENTCFG_HOME", tmp)
 
 	claudeDir := filepath.Join(tmp, ".claude")
 	pluginsDir := filepath.Join(claudeDir, "plugins")
@@ -134,7 +134,7 @@ func TestLoad_MergesThreeFiles(t *testing.T) {
 
 func TestLoad_DefaultEnabledWhenAbsentFromSettings(t *testing.T) {
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	t.Setenv("AGENTCFG_HOME", tmp)
 
 	claudeDir := filepath.Join(tmp, ".claude")
 	pluginsDir := filepath.Join(claudeDir, "plugins")
