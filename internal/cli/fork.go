@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"text/tabwriter"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/fork"
 	"github.com/jorgenosberg/agentcfg/internal/forks"
 	"github.com/jorgenosberg/agentcfg/internal/marketplace"
-	"github.com/jorgenosberg/agentcfg/internal/paths"
 	"github.com/jorgenosberg/agentcfg/internal/plugins"
 )
 
@@ -59,7 +57,7 @@ func newForkCmd(_ func() (config.Config, error)) *cobra.Command { //nolint:unpar
 			if err != nil {
 				return fmt.Errorf("resolve forks root: %w", err)
 			}
-			forksPath, err := defaultForksPath()
+			forksPath, err := forks.DefaultPath()
 			if err != nil {
 				return err
 			}
@@ -125,7 +123,7 @@ func newForkListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List recorded plugin forks",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			forksPath, err := defaultForksPath()
+			forksPath, err := forks.DefaultPath()
 			if err != nil {
 				return err
 			}
@@ -149,7 +147,7 @@ func newForkStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Check whether upstream plugins have advanced past the forked version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			forksPath, err := defaultForksPath()
+			forksPath, err := forks.DefaultPath()
 			if err != nil {
 				return err
 			}
@@ -194,16 +192,6 @@ func newForkStatusCmd() *cobra.Command {
 			return tw.Flush()
 		},
 	}
-}
-
-// helpers
-
-func defaultForksPath() (string, error) {
-	home, err := paths.Home()
-	if err != nil {
-		return "", fmt.Errorf("resolve home: %w", err)
-	}
-	return filepath.Join(home, ".agentcfg", "forks.json"), nil
 }
 
 func shortSHA(sha string) string {

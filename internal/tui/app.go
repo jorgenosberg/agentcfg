@@ -121,7 +121,7 @@ func newModel(cfgPath string, cfg config.Config, items []source.Item, projectIte
 	pluginReg, _ := plugins.Load()
 	forksPath, _ := forks.DefaultPath()
 	forkFile, _ := forks.Load(forksPath)
-	settingsPath, _ := claudecfgDefaultPath()
+	settingsPath, _ := claudecfg.DefaultPath()
 	forksRoot, _ := marketplace.DefaultForksRoot()
 	knownMPPath, _ := marketplace.DefaultKnownMarketplacesPath()
 	installedPluginsPath, _ := marketplace.DefaultInstalledPluginsPath()
@@ -143,10 +143,6 @@ func newModel(cfgPath string, cfg config.Config, items []source.Item, projectIte
 		installedPluginsPath: installedPluginsPath,
 		status:               "ready",
 	}
-}
-
-func claudecfgDefaultPath() (string, error) {
-	return claudecfg.DefaultPath()
 }
 
 // synthesizeGhosts creates ghost entries for skills that belong to disabled
@@ -1939,7 +1935,6 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
-	// Create backup
 	actions = append(actions, paletteAction{
 		label: "Create backup",
 		fn: func() (overlayModel, tea.Cmd) {
@@ -1998,7 +1993,6 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
-	// Add target
 	actions = append(actions, paletteAction{
 		label: "Add target",
 		fn: func() (overlayModel, tea.Cmd) {
@@ -2043,7 +2037,6 @@ func (m model) buildGlobalActions() []paletteAction {
 		})
 	}
 
-	// Add project
 	actions = append(actions, paletteAction{
 		label: "Add project",
 		fn: func() (overlayModel, tea.Cmd) {

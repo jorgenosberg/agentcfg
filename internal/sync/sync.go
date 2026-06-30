@@ -145,7 +145,7 @@ func Install(t config.Target, strategy string, it source.Item) (Status, error) {
 		}
 		return StatusLinked, nil
 	case config.StrategyCopy:
-		if err := copyAny(it.Path, dest); err != nil {
+		if err := CopyAny(it.Path, dest); err != nil {
 			return "", err
 		}
 		return StatusCopied, nil
@@ -252,7 +252,7 @@ func Unmanage(t config.Target, strategy string, it source.Item) error {
 			return fmt.Errorf("remove existing: %w", err)
 		}
 	}
-	return copyAny(it.Path, dest)
+	return CopyAny(it.Path, dest)
 }
 
 func destPath(t config.Target, it source.Item) string {
@@ -374,11 +374,9 @@ func Sync(cfg config.Config, items []source.Item, lck lock.Lock, dryRun, force b
 	return out
 }
 
-// CopyAny copies a file or directory tree from src to dst. Parent dirs of
-// dst must already exist.
-func CopyAny(src, dst string) error { return copyAny(src, dst) }
-
-func copyAny(src, dst string) error {
+// CopyAny copies a file or directory tree from src to dst, following symlinks
+// at the root. Parent dirs of dst must already exist.
+func CopyAny(src, dst string) error {
 	fi, err := os.Stat(src)
 	if err != nil {
 		return err
