@@ -220,16 +220,9 @@ func (o *initWizardOverlay) apply() error {
 		if !o.itemMS.items[i].selected {
 			continue
 		}
-		destSub := source.DefaultSubdirs[wi.item.Kind]
-		destDir := filepath.Join(src, destSub)
-		dest := filepath.Join(destDir, wi.item.Name)
-		if _, err := os.Lstat(dest); err == nil {
-			continue
+		if _, err := sync.ImportItem(src, wi.item, false); err != nil {
+			return fmt.Errorf("import %s: %w", wi.item.Name, err)
 		}
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			continue
-		}
-		sync.CopyAny(wi.item.Path, dest) //nolint:errcheck
 	}
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -236,20 +237,14 @@ func RunInit(cfgPath, defaultSource string) error {
 		if !toImport[c.key] {
 			continue
 		}
-		destSub := source.DefaultSubdirs[c.item.Kind]
-		destDir := filepath.Join(src, destSub)
-		dest := filepath.Join(destDir, c.item.Name)
-		if _, err := os.Lstat(dest); err == nil {
-			continue // already exists
-		}
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			continue
-		}
-		if err := sync.CopyAny(c.item.Path, dest); err != nil {
+		skipped, err := sync.ImportItem(src, c.item, false)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "  warn: import %s: %v\n", c.item.Name, err)
 			continue
 		}
-		imported++
+		if !skipped {
+			imported++
+		}
 	}
 
 	// ── Summary ───────────────────────────────────────────────────────────
@@ -295,10 +290,10 @@ func abort(err error) error {
 	return err
 }
 
-// ContentHash returns a SHA-256 digest of a file or directory tree.
+// ContentHash returns a deterministic SHA-256 digest of a file or directory tree.
 // Symlinks are resolved so different paths to the same content hash identically.
+// Directory hashes are path-sorted for determinism regardless of walk order.
 func ContentHash(path string) (string, error) {
-	// Resolve the root path so symlinks to the same target hash identically.
 	real, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return "", err
@@ -308,33 +303,40 @@ func ContentHash(path string) (string, error) {
 		return "", err
 	}
 	h := sha256.New()
-	if fi.IsDir() {
-		err = filepath.WalkDir(real, func(p string, d fs.DirEntry, walkErr error) error {
-			if walkErr != nil || d.IsDir() {
-				return walkErr
-			}
-			realP, symErr := filepath.EvalSymlinks(p)
-			if symErr != nil {
-				realP = p
-			}
-			rel, _ := filepath.Rel(real, p)
-			h.Write([]byte(rel))
-			data, err := os.ReadFile(realP)
-			if err != nil {
-				return err
-			}
-			h.Write(data)
-			return nil
-		})
-	} else {
+	if !fi.IsDir() {
 		data, err := os.ReadFile(real)
 		if err != nil {
 			return "", err
 		}
 		h.Write(data)
+		return fmt.Sprintf("%x", h.Sum(nil)), nil
 	}
+
+	type entry struct{ rel, realPath string }
+	var entries []entry
+	err = filepath.WalkDir(real, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() {
+			return walkErr
+		}
+		realP, symErr := filepath.EvalSymlinks(p)
+		if symErr != nil {
+			realP = p
+		}
+		rel, _ := filepath.Rel(real, p)
+		entries = append(entries, entry{rel, realP})
+		return nil
+	})
 	if err != nil {
 		return "", err
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].rel < entries[j].rel })
+	for _, e := range entries {
+		h.Write([]byte(e.rel + "\n"))
+		data, err := os.ReadFile(e.realPath)
+		if err != nil {
+			return "", err
+		}
+		h.Write(data)
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }

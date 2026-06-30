@@ -374,6 +374,26 @@ func Sync(cfg config.Config, items []source.Item, lck lock.Lock, dryRun, force b
 	return out
 }
 
+// ImportItem copies a source item into sourceRoot under the subdirectory
+// determined by its kind. If the destination already exists and force is false,
+// it returns (true, nil). If force is true the existing destination is removed
+// first. Use this instead of open-coding the destSub/destDir/CopyAny pattern.
+func ImportItem(sourceRoot string, it source.Item, force bool) (skipped bool, err error) {
+	destSub := source.DefaultSubdirs[it.Kind]
+	destDir := filepath.Join(sourceRoot, destSub)
+	dest := filepath.Join(destDir, it.Name)
+	if _, statErr := os.Lstat(dest); statErr == nil {
+		if !force {
+			return true, nil
+		}
+		_ = os.RemoveAll(dest)
+	}
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return false, err
+	}
+	return false, CopyAny(it.Path, dest)
+}
+
 // CopyAny copies a file or directory tree from src to dst, following symlinks
 // at the root. Parent dirs of dst must already exist.
 func CopyAny(src, dst string) error {

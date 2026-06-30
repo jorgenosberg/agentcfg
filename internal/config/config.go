@@ -253,3 +253,13 @@ func Save(path string, c Config) error {
 	body = append(body, '\n')
 	return os.WriteFile(path, body, 0o644)
 }
+
+// LookupTarget returns the first target with the given name, or false if not found.
+func LookupTarget(cfg Config, name string) (Target, bool) {
+	for _, t := range cfg.Targets {
+		if t.Name == name {
+			return t, true
+		}
+	}
+	return Target{}, false
+}

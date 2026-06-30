@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -32,7 +30,7 @@ func newImportCmd(load func() (config.Config, error)) *cobra.Command {
 				return fmt.Errorf("specify item names or pass --all")
 			}
 
-			t, ok := lookupTarget(cfg, targetName)
+			t, ok := config.LookupTarget(cfg, targetName)
 			if !ok {
 				return fmt.Errorf("target %q not configured; run `agentcfg discover` or `agentcfg target add`", targetName)
 			}
@@ -60,21 +58,13 @@ func newImportCmd(load func() (config.Config, error)) *cobra.Command {
 			}
 
 			for _, it := range selected {
-				destSub := source.DefaultSubdirs[it.Kind]
-				destDir := filepath.Join(cfg.Source, destSub)
-				dest := filepath.Join(destDir, it.Name)
-				if _, err := os.Lstat(dest); err == nil && !force {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\tskip (exists)\n", it.Kind, it.Name)
+				skipped, err := sync.ImportItem(cfg.Source, it, force)
+				if err != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\terror: %v\n", it.Kind, it.Name, err)
 					continue
 				}
-				if err := os.MkdirAll(destDir, 0o755); err != nil {
-					return err
-				}
-				if force {
-					_ = os.RemoveAll(dest)
-				}
-				if err := sync.CopyAny(it.Path, dest); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\terror: %v\n", it.Kind, it.Name, err)
+				if skipped {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\tskip (exists)\n", it.Kind, it.Name)
 					continue
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\timported\n", it.Kind, it.Name)
@@ -85,13 +75,4 @@ func newImportCmd(load func() (config.Config, error)) *cobra.Command {
 	c.Flags().BoolVar(&all, "all", false, "import every item found in the target")
 	c.Flags().BoolVar(&force, "force", false, "overwrite source items that already exist")
 	return c
-}
-
-func lookupTarget(cfg config.Config, name string) (config.Target, bool) {
-	for _, t := range cfg.Targets {
-		if t.Name == name {
-			return t, true
-		}
-	}
-	return config.Target{}, false
 }
