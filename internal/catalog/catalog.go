@@ -45,6 +45,7 @@ func KnownAgents() []config.Target {
 				source.KindSkill:   "skills",
 				source.KindHook:    "hooks",
 				source.KindContext: "",
+				source.KindCommand: "commands",
 			},
 		},
 		{

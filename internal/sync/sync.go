@@ -92,12 +92,7 @@ func ScanTargetDirs(cfg config.Config, sourceItems []source.Item) []Entry {
 	var out []Entry
 	for _, t := range cfg.Targets {
 		strategy := t.ResolveStrategy(cfg.DefaultStrategy)
-		subdirs := source.Subdirs{
-			source.KindSkill:   t.SubdirFor(source.KindSkill),
-			source.KindHook:    t.SubdirFor(source.KindHook),
-			source.KindContext: t.SubdirFor(source.KindContext),
-		}
-		items, err := source.ScanWith(t.Path, subdirs)
+		items, err := source.ScanWith(t.Path, t.SupportedSubdirs())
 		if err != nil {
 			continue
 		}
@@ -263,10 +258,11 @@ func Unmanage(t config.Target, strategy string, it source.Item) error {
 
 func destPath(t config.Target, it source.Item) string {
 	sub := t.SubdirFor(it.Kind)
+	name := t.DestNameFor(it.Kind, it.Name)
 	if sub == "" {
-		return filepath.Join(t.Path, it.Name)
+		return filepath.Join(t.Path, name)
 	}
-	return filepath.Join(t.Path, sub, it.Name)
+	return filepath.Join(t.Path, sub, name)
 }
 
 func statusOf(dest, src, strategy string) Status {

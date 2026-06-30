@@ -10,6 +10,10 @@ import (
 type Profile struct {
 	Subdirs        map[string]string // default per-kind subdirectory names
 	SupportedKinds []string          // item kinds this agent supports
+	// DestName optionally overrides the install filename for a given Kind.
+	// Useful for agents that require a fixed filename (e.g. cursor ".cursorrules").
+	// When absent, the source item's own name is used.
+	DestName map[string]string
 }
 
 const (
@@ -43,16 +47,21 @@ var profiles = map[string]Profile{
 		SupportedKinds: []string{source.KindContext},
 	},
 	Cursor: {
-		Subdirs:        map[string]string{source.KindRule: ""},
+		// Uses the modern multi-file form: .cursor/rules/
+		Subdirs:        map[string]string{source.KindRule: ".cursor/rules"},
 		SupportedKinds: []string{source.KindRule},
 	},
 	Cline: {
+		// Single-file format: DestName renames the installed file to .clinerules
 		Subdirs:        map[string]string{source.KindRule: ""},
 		SupportedKinds: []string{source.KindRule},
+		DestName:       map[string]string{source.KindRule: ".clinerules"},
 	},
 	Windsurf: {
+		// Single-file format: DestName renames the installed file to .windsurfrules
 		Subdirs:        map[string]string{source.KindRule: ""},
 		SupportedKinds: []string{source.KindRule},
+		DestName:       map[string]string{source.KindRule: ".windsurfrules"},
 	},
 	Aider: {
 		Subdirs:        map[string]string{source.KindContext: ""},

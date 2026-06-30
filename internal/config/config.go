@@ -3,8 +3,10 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/jorgenosberg/agentcfg/internal/agent"
 	"github.com/jorgenosberg/agentcfg/internal/paths"
@@ -101,12 +103,7 @@ func (t Target) SupportsKind(kind string) bool {
 	}
 	if t.Agent != "" {
 		if p, ok := agent.Get(t.Agent); ok {
-			for _, k := range p.SupportedKinds {
-				if k == kind {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(p.SupportedKinds, kind)
 		}
 	}
 	return true
@@ -134,6 +131,47 @@ var defaultSubdirs = map[string]string{
 	source.KindSkill:   "skills",
 	source.KindHook:    "hooks",
 	source.KindContext: "",
+	source.KindCommand: "commands",
+	source.KindRule:    "rules",
+}
+
+// DestNameFor returns the filename to use when installing an item of the given
+// Kind. When the agent profile specifies a fixed name for that kind (e.g.
+// ".clinerules"), it is returned regardless of srcName. Otherwise srcName is
+// returned unchanged.
+func (t Target) DestNameFor(kind, srcName string) string {
+	if t.Agent != "" {
+		if p, ok := agent.Get(t.Agent); ok {
+			if name, has := p.DestName[kind]; has {
+				return name
+			}
+		}
+	}
+	return srcName
+}
+
+// SupportedSubdirs returns a Subdirs map covering every Kind this target
+// supports, derived from the explicit Subdirs override, the agent profile, or
+// the built-in defaults. Use this when you need to scan all of a target's
+// install directories rather than asking about one kind at a time.
+func (t Target) SupportedSubdirs() source.Subdirs {
+	if t.Subdirs != nil {
+		// Explicit override: treat it as the complete specification.
+		return t.Subdirs
+	}
+	if t.Agent != "" {
+		if p, ok := agent.Get(t.Agent); ok {
+			sd := make(source.Subdirs, len(p.SupportedKinds))
+			for _, k := range p.SupportedKinds {
+				sd[k] = p.Subdirs[k]
+			}
+			return sd
+		}
+	}
+	// No agent profile: fall back to the built-in set.
+	out := make(source.Subdirs, len(defaultSubdirs))
+	maps.Copy(out, defaultSubdirs)
+	return out
 }
 
 // DefaultPath returns the canonical config file path.

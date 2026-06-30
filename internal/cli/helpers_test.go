@@ -11,8 +11,8 @@ import (
 )
 
 // seedTargetTree creates a minimal agent-style target dir with one skill dir,
-// one hook file, and one context .md file, returning the created paths.
-// Use this to give `import <target>` something to scan.
+// one hook file, one context .md file, and one command file, returning the
+// created paths. Use this to give `import <target>` something to scan.
 func seedTargetTree(t *testing.T, dir string) {
 	t.Helper()
 	// skill: a directory under skills/
@@ -21,6 +21,8 @@ func seedTargetTree(t *testing.T, dir string) {
 	mkfile(t, filepath.Join(dir, "hooks", "pre-tool-call.sh"), "#!/bin/sh\necho hook")
 	// context: a .md file at the root (empty sub → ScanWith scans root for *.md)
 	mkfile(t, filepath.Join(dir, "CLAUDE.md"), "# context")
+	// command: a .md file under commands/
+	mkfile(t, filepath.Join(dir, "commands", "review.md"), "# review")
 }
 
 // seedProject creates a minimal project directory with config files for several
@@ -75,7 +77,7 @@ func seedConfig(t *testing.T, home string, cfg config.Config) {
 	if err := config.Save(cfgPath, cfg); err != nil {
 		t.Fatalf("seedConfig: %v", err)
 	}
-	for _, sub := range []string{"skills", "hooks", "context"} {
+	for _, sub := range []string{"skills", "hooks", "context", "commands", "rules"} {
 		if err := os.MkdirAll(filepath.Join(cfg.Source, sub), 0o755); err != nil {
 			t.Fatalf("seedConfig mkdir %s: %v", sub, err)
 		}

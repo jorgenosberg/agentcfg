@@ -192,6 +192,92 @@ func TestScanWithEmptySubdirMap(t *testing.T) {
 	}
 }
 
+func TestScanCommands(t *testing.T) {
+	root := t.TempDir()
+	mkfile(t, filepath.Join(root, "commands", "review.md"), "# review")
+	mkfile(t, filepath.Join(root, "commands", "deploy.md"), "# deploy")
+	// directories inside commands/ are ignored (commands are files)
+	mkdir(t, filepath.Join(root, "commands", "not-a-command"))
+
+	items, err := source.Scan(root)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var cmds []source.Item
+	for _, it := range items {
+		if it.Kind == source.KindCommand {
+			cmds = append(cmds, it)
+		}
+	}
+	if len(cmds) != 2 {
+		t.Fatalf("expected 2 commands, got %d: %v", len(cmds), cmds)
+	}
+	if cmds[0].Name != "deploy.md" || cmds[1].Name != "review.md" {
+		t.Errorf("unexpected command names: %v", []string{cmds[0].Name, cmds[1].Name})
+	}
+}
+
+func TestScanCommandsRequiresSubdir(t *testing.T) {
+	root := t.TempDir()
+	// KindCommand with subdir="" should be silently skipped.
+	sd := source.Subdirs{source.KindCommand: ""}
+	mkfile(t, filepath.Join(root, "orphan.md"), "")
+
+	items, err := source.ScanWith(root, sd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("command with empty subdir should find nothing, got %d items", len(items))
+	}
+}
+
+func TestScanRules(t *testing.T) {
+	root := t.TempDir()
+	mkfile(t, filepath.Join(root, "rules", "typescript.md"), "# ts rules")
+	mkfile(t, filepath.Join(root, "rules", "no-console.md"), "# no console")
+	// a directory inside rules/ is ignored
+	mkdir(t, filepath.Join(root, "rules", "not-a-rule"))
+
+	items, err := source.Scan(root)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var rules []source.Item
+	for _, it := range items {
+		if it.Kind == source.KindRule {
+			rules = append(rules, it)
+		}
+	}
+	if len(rules) != 2 {
+		t.Fatalf("expected 2 rules, got %d: %v", len(rules), rules)
+	}
+}
+
+func TestScanRulesAtRoot(t *testing.T) {
+	root := t.TempDir()
+	// KindRule with subdir="" scans the root for all files, including dotfiles
+	// like .cursorrules (rule files are dotfiles by convention). No md-only filter.
+	sd := source.Subdirs{source.KindRule: ""}
+	mkfile(t, filepath.Join(root, ".cursorrules"), "# rules")
+	mkfile(t, filepath.Join(root, "other.txt"), "txt")
+
+	items, err := source.ScanWith(root, sd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 rule items at root, got %d: %v", len(items), items)
+	}
+	for _, it := range items {
+		if it.Kind != source.KindRule {
+			t.Errorf("expected KindRule, got %q", it.Kind)
+		}
+	}
+}
+
 func TestScanProjectNonexistentRoot(t *testing.T) {
 	items, err := source.ScanProject("/no/such/path", "myproject")
 	if err != nil {

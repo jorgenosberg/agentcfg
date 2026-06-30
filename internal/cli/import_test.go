@@ -9,10 +9,9 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/config"
 )
 
-// targetSubdirConfig builds a config whose target has explicit Subdirs so that
-// source.ScanWith (used by `import`) can read the target tree's layout.
-// This is required because the import command passes t.Subdirs directly to
-// ScanWith; without explicit Subdirs the map is nil and nothing is scanned.
+// targetSubdirConfig builds a config whose target uses the claude agent profile.
+// The import command now calls t.SupportedSubdirs(), so no explicit Subdirs override
+// is needed — the agent profile provides the full layout including commands.
 func targetSubdirConfig(home, tgtPath string) config.Config {
 	return config.Config{
 		Source:          defaultSource(home),
@@ -24,11 +23,6 @@ func targetSubdirConfig(home, tgtPath string) config.Config {
 				Path:  tgtPath,
 				Agent: "claude",
 				Alias: "claude",
-				Subdirs: map[string]string{
-					"skill":   "skills",
-					"hook":    "hooks",
-					"context": "",
-				},
 			},
 		},
 	}
@@ -210,6 +204,28 @@ func TestImport_ForceOverwrites(t *testing.T) {
 	data, _ := os.ReadFile(dest)
 	if string(data) == "stale content" {
 		t.Error("--force should overwrite stale content")
+	}
+}
+
+func TestImport_SingleCommandItem(t *testing.T) {
+	home := sandbox(t)
+	tgtPath := filepath.Join(home, ".claude")
+
+	cfg := targetSubdirConfig(home, tgtPath)
+	seedConfig(t, home, cfg)
+	seedTargetTree(t, tgtPath)
+
+	out, err := runCLI(t, "import", "claude", "review.md")
+	if err != nil {
+		t.Fatalf("import command: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "imported") {
+		t.Errorf("expected 'imported' in output: %s", out)
+	}
+
+	dest := filepath.Join(defaultSource(home), "commands", "review.md")
+	if _, err := os.Stat(dest); err != nil {
+		t.Errorf("imported command not at %s: %v", dest, err)
 	}
 }
 

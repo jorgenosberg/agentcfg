@@ -959,6 +959,127 @@ func TestCopyAny_Dir(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Command and rule kind support
+// ---------------------------------------------------------------------------
+
+func TestScanTargetDirs_PicksUpCommands(t *testing.T) {
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	// Source has one command item.
+	cmdPath := filepath.Join(src, "review.md")
+	if err := os.WriteFile(cmdPath, []byte("# review"), 0o644); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+	srcCmd := source.Item{Kind: source.KindCommand, Name: "review.md", Path: cmdPath}
+
+	// Install it into the target under commands/.
+	cmdDir := filepath.Join(tgtDir, "commands")
+	if err := os.MkdirAll(cmdDir, 0o755); err != nil {
+		t.Fatalf("mkdir commands: %v", err)
+	}
+	if err := os.Symlink(cmdPath, filepath.Join(cmdDir, "review.md")); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	cfg := config.Config{
+		Source:          src,
+		DefaultStrategy: config.StrategyLink,
+		Targets: []config.Target{{
+			Name:  "claude",
+			Path:  tgtDir,
+			Agent: "claude",
+		}},
+	}
+
+	entries := sync.ScanTargetDirs(cfg, []source.Item{srcCmd})
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry for installed command, got %d", len(entries))
+	}
+	if entries[0].Status != sync.StatusLinked {
+		t.Errorf("want StatusLinked for installed command, got %q", entries[0].Status)
+	}
+	if entries[0].Item.Kind != source.KindCommand {
+		t.Errorf("want KindCommand, got %q", entries[0].Item.Kind)
+	}
+}
+
+func TestInstall_CommandToClaudeTarget(t *testing.T) {
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	cmdPath := filepath.Join(src, "deploy.md")
+	if err := os.WriteFile(cmdPath, []byte("# deploy"), 0o644); err != nil {
+		t.Fatalf("write command: %v", err)
+	}
+	cmdItem := source.Item{Kind: source.KindCommand, Name: "deploy.md", Path: cmdPath}
+	tgt := config.Target{Name: "claude", Path: tgtDir, Agent: "claude"}
+
+	status, err := sync.Install(tgt, config.StrategyLink, cmdItem)
+	if err != nil {
+		t.Fatalf("Install command: %v", err)
+	}
+	if status != sync.StatusLinked {
+		t.Errorf("want StatusLinked, got %q", status)
+	}
+	dest := filepath.Join(tgtDir, "commands", "deploy.md")
+	if _, err := os.Lstat(dest); err != nil {
+		t.Errorf("command not installed at expected path %s: %v", dest, err)
+	}
+}
+
+func TestInstall_RuleWithDestNameOverride(t *testing.T) {
+	// Cline profile overrides the install filename to ".clinerules".
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	rulePath := filepath.Join(src, "typescript.md")
+	if err := os.WriteFile(rulePath, []byte("# ts rules"), 0o644); err != nil {
+		t.Fatalf("write rule: %v", err)
+	}
+	ruleItem := source.Item{Kind: source.KindRule, Name: "typescript.md", Path: rulePath}
+	tgt := config.Target{Name: "cline", Path: tgtDir, Agent: "cline"}
+
+	status, err := sync.Install(tgt, config.StrategyLink, ruleItem)
+	if err != nil {
+		t.Fatalf("Install rule to cline: %v", err)
+	}
+	if status != sync.StatusLinked {
+		t.Errorf("want StatusLinked, got %q", status)
+	}
+	// Should land at .clinerules (root, renamed by DestName).
+	dest := filepath.Join(tgtDir, ".clinerules")
+	if _, err := os.Lstat(dest); err != nil {
+		t.Errorf("rule not installed as .clinerules at %s: %v", dest, err)
+	}
+}
+
+func TestInstall_RuleToCursorDirectory(t *testing.T) {
+	// Cursor profile uses the directory form: .cursor/rules/
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	rulePath := filepath.Join(src, "no-console.md")
+	if err := os.WriteFile(rulePath, []byte("# no console"), 0o644); err != nil {
+		t.Fatalf("write rule: %v", err)
+	}
+	ruleItem := source.Item{Kind: source.KindRule, Name: "no-console.md", Path: rulePath}
+	tgt := config.Target{Name: "cursor", Path: tgtDir, Agent: "cursor"}
+
+	status, err := sync.Install(tgt, config.StrategyLink, ruleItem)
+	if err != nil {
+		t.Fatalf("Install rule to cursor: %v", err)
+	}
+	if status != sync.StatusLinked {
+		t.Errorf("want StatusLinked, got %q", status)
+	}
+	dest := filepath.Join(tgtDir, ".cursor", "rules", "no-console.md")
+	if _, err := os.Lstat(dest); err != nil {
+		t.Errorf("rule not installed at %s: %v", dest, err)
+	}
+}
+
 func TestCopyAny_SymlinkedRoot(t *testing.T) {
 	// Create a real dir with content, then make a symlink to it.
 	realDir := t.TempDir()

@@ -81,6 +81,95 @@ func TestSubdirForWithAgentProfile(t *testing.T) {
 	}
 }
 
+func TestSupportsKindCommand(t *testing.T) {
+	claude := config.Target{Name: "claude", Path: "/tmp/claude", Agent: "claude"}
+	if !claude.SupportsKind(source.KindCommand) {
+		t.Error("claude profile should support command")
+	}
+	codex := config.Target{Name: "codex", Path: "/tmp/codex", Agent: "codex"}
+	if codex.SupportsKind(source.KindCommand) {
+		t.Error("codex profile should not support command")
+	}
+}
+
+func TestSupportsKindRule(t *testing.T) {
+	cursor := config.Target{Name: "cursor", Path: "/tmp/cursor", Agent: "cursor"}
+	if !cursor.SupportsKind(source.KindRule) {
+		t.Error("cursor profile should support rule")
+	}
+	claude := config.Target{Name: "claude", Path: "/tmp/claude", Agent: "claude"}
+	if claude.SupportsKind(source.KindRule) {
+		t.Error("claude profile should not support rule")
+	}
+}
+
+func TestSubdirForCommand(t *testing.T) {
+	claude := config.Target{Name: "claude", Path: "/tmp/claude", Agent: "claude"}
+	if got := claude.SubdirFor(source.KindCommand); got != "commands" {
+		t.Errorf("SubdirFor command on claude: want %q got %q", "commands", got)
+	}
+}
+
+func TestSubdirForRuleCursor(t *testing.T) {
+	// cursor uses the multi-file directory form
+	cursor := config.Target{Name: "cursor", Path: "/tmp/cursor", Agent: "cursor"}
+	if got := cursor.SubdirFor(source.KindRule); got != ".cursor/rules" {
+		t.Errorf("SubdirFor rule on cursor: want %q got %q", ".cursor/rules", got)
+	}
+}
+
+func TestDestNameFor_NoOverride(t *testing.T) {
+	// claude has no DestName override: source name passes through
+	claude := config.Target{Name: "claude", Path: "/tmp/claude", Agent: "claude"}
+	if got := claude.DestNameFor(source.KindCommand, "review.md"); got != "review.md" {
+		t.Errorf("DestNameFor with no override: want %q got %q", "review.md", got)
+	}
+}
+
+func TestDestNameFor_ClineOverride(t *testing.T) {
+	cline := config.Target{Name: "cline", Path: "/tmp/proj", Agent: "cline"}
+	if got := cline.DestNameFor(source.KindRule, "my-rules.md"); got != ".clinerules" {
+		t.Errorf("DestNameFor cline rule: want %q got %q", ".clinerules", got)
+	}
+}
+
+func TestDestNameFor_WindsurfOverride(t *testing.T) {
+	ws := config.Target{Name: "windsurf", Path: "/tmp/proj", Agent: "windsurf"}
+	if got := ws.DestNameFor(source.KindRule, "my-rules.md"); got != ".windsurfrules" {
+		t.Errorf("DestNameFor windsurf rule: want %q got %q", ".windsurfrules", got)
+	}
+}
+
+func TestSupportedSubdirs_FromProfile(t *testing.T) {
+	claude := config.Target{Name: "claude", Path: "/tmp/claude", Agent: "claude"}
+	sd := claude.SupportedSubdirs()
+	if _, ok := sd[source.KindSkill]; !ok {
+		t.Error("claude SupportedSubdirs should include skill")
+	}
+	if _, ok := sd[source.KindCommand]; !ok {
+		t.Error("claude SupportedSubdirs should include command")
+	}
+	if _, ok := sd[source.KindRule]; ok {
+		t.Error("claude SupportedSubdirs should not include rule")
+	}
+}
+
+func TestSupportedSubdirs_ExplicitOverride(t *testing.T) {
+	tgt := config.Target{
+		Name:    "custom",
+		Path:    "/tmp/custom",
+		Agent:   "claude",
+		Subdirs: map[string]string{source.KindSkill: "skills"},
+	}
+	sd := tgt.SupportedSubdirs()
+	if len(sd) != 1 {
+		t.Errorf("explicit Subdirs: expected 1 entry, got %d", len(sd))
+	}
+	if _, ok := sd[source.KindSkill]; !ok {
+		t.Error("explicit Subdirs: skill should be included")
+	}
+}
+
 func TestAliasRoundtrip(t *testing.T) {
 	dir := t.TempDir()
 	path := dir + "/config.json"

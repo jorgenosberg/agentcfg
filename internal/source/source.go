@@ -33,6 +33,26 @@ var DefaultSubdirs = Subdirs{
 	KindSkill:   "skills",
 	KindHook:    "hooks",
 	KindContext: "context",
+	KindCommand: "commands",
+	KindRule:    "rules",
+}
+
+// kindDesc describes how a Kind is scanned within ScanWith.
+type kindDesc struct {
+	isDir       bool // entries are directories (skills) or files (everything else)
+	needsSubdir bool // skip when subdir is "" (hooks and commands require an explicit subdir)
+	mdOnly      bool // when scanning root (subdir=""), limit to .md/.markdown files (context)
+	includeDots bool // include dotfile entries (rule files like .cursorrules are dotfiles)
+}
+
+// kindDescs maps each known Kind to its scan descriptor.
+// Unknown kinds appearing in a Subdirs map are silently skipped.
+var kindDescs = map[string]kindDesc{
+	KindSkill:   {isDir: true, needsSubdir: true},
+	KindHook:    {isDir: false, needsSubdir: true},
+	KindContext: {isDir: false, mdOnly: true},
+	KindCommand: {isDir: false, needsSubdir: true},
+	KindRule:    {isDir: false, includeDots: true},
 }
 
 // Scan walks a tree using DefaultSubdirs.
@@ -42,11 +62,12 @@ func Scan(root string) ([]Item, error) {
 
 // ScanWith walks a tree using the provided layout.
 //
-// Rules:
-//   - skill: subdir must be non-empty; entries are directories under it.
-//   - hook:  subdir must be non-empty; entries are files under it.
-//   - context: subdir may be empty (scan root, .md files only) or non-empty
-//     (scan that dir, all non-hidden files).
+// Rules per Kind:
+//   - skill:   subdir required; entries are directories.
+//   - hook:    subdir required; entries are files.
+//   - context: subdir may be empty (scan root, .md files only) or a named dir.
+//   - command: subdir required; entries are files.
+//   - rule:    subdir may be empty (scan root, all non-hidden files) or a named dir.
 func ScanWith(root string, sd Subdirs) ([]Item, error) {
 	if _, err := os.Stat(root); err != nil {
 		if os.IsNotExist(err) {
@@ -57,71 +78,47 @@ func ScanWith(root string, sd Subdirs) ([]Item, error) {
 
 	var items []Item
 
-	if sub, ok := sd[KindSkill]; ok && sub != "" {
+	for kind, sub := range sd {
+		desc, known := kindDescs[kind]
+		if !known {
+			continue
+		}
+		if desc.needsSubdir && sub == "" {
+			continue
+		}
+
 		dir := filepath.Join(root, sub)
 		entries, err := os.ReadDir(dir)
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return nil, fmt.Errorf("read %s: %w", dir, err)
 		}
+
+		rootScan := sub == ""
 		for _, e := range entries {
-			if hidden(e.Name()) {
+			if !desc.includeDots && hidden(e.Name()) {
 				continue
 			}
 			p := filepath.Join(dir, e.Name())
 			fi, err := os.Stat(p) // follow symlinks
-			if err != nil || !fi.IsDir() {
+			if err != nil {
 				continue
 			}
-			items = append(items, Item{
-				Kind: KindSkill,
-				Name: e.Name(),
-				Path: p,
-			})
-		}
-	}
-
-	if sub, ok := sd[KindHook]; ok && sub != "" {
-		dir := filepath.Join(root, sub)
-		entries, err := os.ReadDir(dir)
-		if err != nil && !os.IsNotExist(err) {
-			return nil, fmt.Errorf("read %s: %w", dir, err)
-		}
-		for _, e := range entries {
-			if hidden(e.Name()) {
-				continue
+			if desc.isDir {
+				if !fi.IsDir() {
+					continue
+				}
+			} else {
+				if fi.IsDir() {
+					continue
+				}
+				if rootScan && desc.mdOnly && !isMarkdown(e.Name()) {
+					continue
+				}
 			}
-			p := filepath.Join(dir, e.Name())
-			fi, err := os.Stat(p)
-			if err != nil || fi.IsDir() {
-				continue
-			}
-			items = append(items, Item{
-				Kind: KindHook,
-				Name: e.Name(),
-				Path: p,
-			})
-		}
-	}
-
-	if sub, ok := sd[KindContext]; ok {
-		dir := filepath.Join(root, sub)
-		entries, err := os.ReadDir(dir)
-		if err != nil && !os.IsNotExist(err) {
-			return nil, fmt.Errorf("read %s: %w", dir, err)
-		}
-		rootScan := sub == ""
-		for _, e := range entries {
-			if e.IsDir() || hidden(e.Name()) {
-				continue
-			}
-			if rootScan && !isMarkdown(e.Name()) {
-				continue
-			}
-			items = append(items, Item{
-				Kind: KindContext,
-				Name: e.Name(),
-				Path: filepath.Join(dir, e.Name()),
-			})
+			items = append(items, Item{Kind: kind, Name: e.Name(), Path: p})
 		}
 	}
 

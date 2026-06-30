@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,6 +83,7 @@ func NewRoot() *cobra.Command {
 		newDiscoverCmd(resolveCfg, resolvePath),
 		newImportCmd(resolveCfg),
 		newProjectCmd(resolveCfg, resolvePath),
+		newForkCmd(resolveCfg),
 	)
 	return root
 }
@@ -130,9 +132,7 @@ func newDiscoverCmd(load func() (config.Config, error), pathOf func() (string, e
 				effectiveSubdirs := source.Subdirs{}
 				if asAgent != "" {
 					if p, ok := agentpkg.Get(asAgent); ok {
-						for k, v := range p.Subdirs {
-							effectiveSubdirs[k] = v
-						}
+						maps.Copy(effectiveSubdirs, p.Subdirs)
 					}
 				}
 				if len(effectiveSubdirs) == 0 {
@@ -297,7 +297,7 @@ func newImportCmd(load func() (config.Config, error)) *cobra.Command {
 				return fmt.Errorf("target %q not configured; run `agentcfg discover` or `agentcfg target add`", targetName)
 			}
 
-			items, err := source.ScanWith(t.Path, t.Subdirs)
+			items, err := source.ScanWith(t.Path, t.SupportedSubdirs())
 			if err != nil {
 				return err
 			}
