@@ -487,8 +487,11 @@ func newProjectScanCmd(load func() (config.Config, error)) *cobra.Command {
 			}
 
 			projects := cfg.Projects
+			name := projectName
 			if len(args) == 1 {
-				name := args[0]
+				name = args[0]
+			}
+			if name != "" {
 				found := false
 				for _, p := range cfg.Projects {
 					if p.Name == name {

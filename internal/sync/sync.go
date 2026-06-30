@@ -214,8 +214,14 @@ func Toggle(cfgPath, targetName string, item source.Item, disable bool) error {
 			return nil // already disabled — idempotent
 		}
 		t.Disabled = append(t.Disabled, item.Name)
-		if err := Uninstall(*t, strategy, item); err != nil {
-			return fmt.Errorf("uninstall %s from %s: %w", item.Name, t.Name, err)
+		dest := destPath(*t, item)
+		st := statusOf(dest, item.Path, strategy)
+		// Skip Uninstall when the file is already absent or already unmanaged
+		// (e.g. after Unmanage was called). The Disabled flag is what matters here.
+		if st != StatusAbsent && st != StatusUnmanaged {
+			if err := Uninstall(*t, strategy, item); err != nil {
+				return fmt.Errorf("uninstall %s from %s: %w", item.Name, t.Name, err)
+			}
 		}
 	} else {
 		kept := make([]string, 0, len(t.Disabled))

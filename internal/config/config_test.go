@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
@@ -130,5 +131,117 @@ func TestSubdirForExplicitSubdirsNoFallthrough(t *testing.T) {
 	// SubdirFor should also return "" (not the claude profile's "hooks")
 	if got := tgt.SubdirFor("hook"); got != "" {
 		t.Errorf("SubdirFor hook with explicit Subdirs: want %q got %q", "", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ResolveStrategy
+// ---------------------------------------------------------------------------
+
+func TestResolveStrategy_Explicit(t *testing.T) {
+	tgt := config.Target{Strategy: config.StrategyCopy}
+	if got := tgt.ResolveStrategy(config.StrategyLink); got != config.StrategyCopy {
+		t.Errorf("explicit strategy: want %q, got %q", config.StrategyCopy, got)
+	}
+}
+
+func TestResolveStrategy_Fallback(t *testing.T) {
+	tgt := config.Target{} // no explicit strategy
+	if got := tgt.ResolveStrategy(config.StrategyCopy); got != config.StrategyCopy {
+		t.Errorf("fallback strategy: want %q, got %q", config.StrategyCopy, got)
+	}
+}
+
+func TestResolveStrategy_BothEmpty(t *testing.T) {
+	tgt := config.Target{}
+	if got := tgt.ResolveStrategy(""); got != config.StrategyLink {
+		t.Errorf("both empty: want %q (default), got %q", config.StrategyLink, got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Excludes
+// ---------------------------------------------------------------------------
+
+func TestExcludes_MatchByName(t *testing.T) {
+	tgt := config.Target{Exclude: []string{"GEMINI.md"}}
+	item := source.Item{Kind: source.KindContext, Name: "GEMINI.md"}
+	if !tgt.Excludes(item) {
+		t.Error("expected Excludes to match by plain name")
+	}
+}
+
+func TestExcludes_MatchByKindQualified(t *testing.T) {
+	tgt := config.Target{Exclude: []string{"context/GEMINI.md"}}
+	item := source.Item{Kind: source.KindContext, Name: "GEMINI.md"}
+	if !tgt.Excludes(item) {
+		t.Error("expected Excludes to match by kind/name")
+	}
+}
+
+func TestExcludes_NoMatch(t *testing.T) {
+	tgt := config.Target{Exclude: []string{"context/GEMINI.md"}}
+	other := source.Item{Kind: source.KindContext, Name: "CLAUDE.md"}
+	if tgt.Excludes(other) {
+		t.Error("Excludes should not match a different item")
+	}
+}
+
+func TestExcludes_KindMismatch(t *testing.T) {
+	// "skill/GEMINI.md" should not match a context item of same name.
+	tgt := config.Target{Exclude: []string{"skill/GEMINI.md"}}
+	item := source.Item{Kind: source.KindContext, Name: "GEMINI.md"}
+	if tgt.Excludes(item) {
+		t.Error("Excludes with kind prefix should not match a different kind")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Default / DefaultSource / DefaultPath
+// ---------------------------------------------------------------------------
+
+func TestDefault_Shape(t *testing.T) {
+	cfg := config.Default("")
+	if cfg.DefaultStrategy != config.StrategyLink {
+		t.Errorf("Default strategy: want %q, got %q", config.StrategyLink, cfg.DefaultStrategy)
+	}
+	if cfg.Projects == nil {
+		t.Error("Default Projects should be non-nil slice")
+	}
+	if cfg.Targets == nil {
+		t.Error("Default Targets should be non-nil slice")
+	}
+}
+
+func TestDefault_CustomSource(t *testing.T) {
+	cfg := config.Default("/custom/source")
+	if cfg.Source != "/custom/source" {
+		t.Errorf("Default with custom source: want %q, got %q", "/custom/source", cfg.Source)
+	}
+}
+
+func TestDefaultSource_Sandboxed(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("AGENTCFG_HOME", home)
+
+	src, err := config.DefaultSource()
+	if err != nil {
+		t.Fatalf("DefaultSource: %v", err)
+	}
+	if !strings.HasPrefix(src, home) {
+		t.Errorf("DefaultSource should be under sandbox %q, got %q", home, src)
+	}
+}
+
+func TestDefaultPath_Sandboxed(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("AGENTCFG_HOME", home)
+
+	p, err := config.DefaultPath()
+	if err != nil {
+		t.Fatalf("DefaultPath: %v", err)
+	}
+	if !strings.HasPrefix(p, home) {
+		t.Errorf("DefaultPath should be under sandbox %q, got %q", home, p)
 	}
 }

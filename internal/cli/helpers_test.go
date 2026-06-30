@@ -10,6 +10,40 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/config"
 )
 
+// seedTargetTree creates a minimal agent-style target dir with one skill dir,
+// one hook file, and one context .md file, returning the created paths.
+// Use this to give `import <target>` something to scan.
+func seedTargetTree(t *testing.T, dir string) {
+	t.Helper()
+	// skill: a directory under skills/
+	mkfile(t, filepath.Join(dir, "skills", "my-skill", "SKILL.md"), "# my skill")
+	// hook: a file under hooks/
+	mkfile(t, filepath.Join(dir, "hooks", "pre-tool-call.sh"), "#!/bin/sh\necho hook")
+	// context: a .md file at the root (empty sub → ScanWith scans root for *.md)
+	mkfile(t, filepath.Join(dir, "CLAUDE.md"), "# context")
+}
+
+// seedProject creates a minimal project directory with config files for several
+// agents (claude, copilot, cursor) so `project scan` has something to report.
+func seedProject(t *testing.T, dir string) {
+	t.Helper()
+	mkfile(t, filepath.Join(dir, "CLAUDE.md"), "# claude context")
+	mkfile(t, filepath.Join(dir, ".claude", "skills", "proj-skill", "info.md"), "skill content")
+	mkfile(t, filepath.Join(dir, ".github", "copilot-instructions.md"), "# copilot")
+	mkfile(t, filepath.Join(dir, ".cursorrules"), "# cursor rules")
+}
+
+// readConfig loads config.json from ~/.agentcfg/config.json under the sandbox.
+func readConfig(t *testing.T, home string) config.Config {
+	t.Helper()
+	cfgPath := filepath.Join(home, ".agentcfg", "config.json")
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("readConfig: %v", err)
+	}
+	return cfg
+}
+
 // sandbox sets AGENTCFG_HOME to a fresh TempDir, isolating all path
 // resolution (config, catalog, plugin files) from the real home.
 // Returns the sandbox dir.
