@@ -4,137 +4,97 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/jorgenosberg/agentcfg/internal/claudecfg"
 	"github.com/jorgenosberg/agentcfg/internal/forks"
+	"github.com/jorgenosberg/agentcfg/internal/marketplace"
 	"github.com/jorgenosberg/agentcfg/internal/plugins"
 	isync "github.com/jorgenosberg/agentcfg/internal/sync"
 )
 
-// Scope controls how much of a plugin is forked.
-type Scope int
-
-const (
-	// ScopeSkill forks only the named skills.
-	ScopeSkill Scope = iota
-	// ScopeFull forks all forkable components (skills + hooks).
-	ScopeFull
-)
-
 // Request describes a fork operation.
 type Request struct {
-	Plugin       plugins.Plugin
-	Scope        Scope
-	Skills       []string // used when Scope == ScopeSkill
-	SourceRoot   string   // agentcfg source root (e.g. ~/.agentcfg/source)
-	ForksPath    string   // path to forks.json
-	SettingsPath string   // path to ~/.claude/settings.json
+	Plugin                plugins.Plugin
+	ForksRoot             string // ~/.agentcfg/forks (the fork marketplace root)
+	ForksPath             string // path to forks.json
+	SettingsPath          string // path to ~/.claude/settings.json
+	KnownMarketplacesPath string // path to ~/.claude/plugins/known_marketplaces.json
+	InstalledPluginsPath  string // path to ~/.claude/plugins/installed_plugins.json
 }
 
-// Result reports what was forked and what was skipped.
+// Result reports the outcome of a fork.
 type Result struct {
-	ForkedSkills []string
-	ForkedHooks  []string
-	Skipped      forks.Skipped
+	BundlePath   string // absolute path of the copied bundle
+	ForkFullName string // "<name>@agentcfg-forks"
 }
 
-// Execute performs the fork: copies files, records provenance, disables the plugin.
+// Execute performs the fork: copies the entire plugin bundle into the agentcfg
+// fork marketplace, registers it with Claude Code, disables the upstream plugin,
+// enables the fork, and records provenance in forks.json.
 func Execute(req Request) (Result, error) {
-	skillsToCopy, hooksToCopy := resolveComponents(req)
+	p := req.Plugin
+	bundleDest := marketplace.BundlePath(req.ForksRoot, p.Name)
+	forkFullName := marketplace.ForkFullName(p.Name)
 
-	var res Result
-	var copyErrs []error
-
-	skillsDir := filepath.Join(req.SourceRoot, "skills")
-	if err := os.MkdirAll(skillsDir, 0o755); err != nil {
-		return Result{}, fmt.Errorf("create skills dir: %w", err)
+	// Refuse to clobber an existing fork.
+	if _, err := os.Stat(bundleDest); err == nil {
+		return Result{}, fmt.Errorf("fork already exists at %s; remove it first", bundleDest)
 	}
 
-	for _, name := range skillsToCopy {
-		src := filepath.Join(req.Plugin.InstallPath, "skills", name)
-		dst := filepath.Join(skillsDir, name)
-		if _, err := os.Stat(dst); err == nil {
-			copyErrs = append(copyErrs, fmt.Errorf("skill %q already exists in source; remove it first or rename the fork", name))
-			continue
-		}
-		if err := isync.CopyAny(src, dst); err != nil {
-			copyErrs = append(copyErrs, fmt.Errorf("copy skill %q: %w", name, err))
-			continue
-		}
-		res.ForkedSkills = append(res.ForkedSkills, name)
+	// Create the plugins/ directory; CopyAny creates the bundle dir itself.
+	if err := os.MkdirAll(filepath.Dir(bundleDest), 0o755); err != nil {
+		return Result{}, fmt.Errorf("create fork plugins dir: %w", err)
 	}
 
-	hooksDir := filepath.Join(req.SourceRoot, "hooks")
-	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
-		return Result{}, fmt.Errorf("create hooks dir: %w", err)
+	// Copy the full bundle verbatim.
+	if err := isync.CopyAny(p.InstallPath, bundleDest); err != nil {
+		return Result{}, fmt.Errorf("copy plugin bundle: %w", err)
 	}
 
-	for _, name := range hooksToCopy {
-		src := filepath.Join(req.Plugin.InstallPath, "hooks", name)
-		dst := filepath.Join(hooksDir, name)
-		if _, err := os.Stat(dst); err == nil {
-			copyErrs = append(copyErrs, fmt.Errorf("hook %q already exists in source; remove it first or rename the fork", name))
-			continue
-		}
-		if err := isync.CopyAny(src, dst); err != nil {
-			copyErrs = append(copyErrs, fmt.Errorf("copy hook %q: %w", name, err))
-			continue
-		}
-		res.ForkedHooks = append(res.ForkedHooks, name)
+	now := time.Now().UTC()
+
+	// Register the plugin in the agentcfg fork marketplace manifest.
+	if err := marketplace.AddPlugin(req.ForksRoot, p); err != nil {
+		return Result{}, fmt.Errorf("update fork marketplace manifest: %w", err)
 	}
 
-	if len(copyErrs) > 0 && len(res.ForkedSkills) == 0 && len(res.ForkedHooks) == 0 {
-		return Result{}, fmt.Errorf("fork failed: %w", copyErrs[0])
+	// Register the fork marketplace with Claude Code.
+	if err := marketplace.RegisterMarketplace(req.KnownMarketplacesPath, req.ForksRoot); err != nil {
+		return Result{}, fmt.Errorf("register fork marketplace: %w", err)
 	}
 
-	// Record non-forkable components.
-	res.Skipped = forks.Skipped{
-		MCPServers: req.Plugin.MCPServers,
-		LSPServers: req.Plugin.LSPServers,
+	// Add the fork to Claude Code's installed plugins registry.
+	if err := marketplace.RegisterInstalled(req.InstalledPluginsPath, p, bundleDest, now); err != nil {
+		return Result{}, fmt.Errorf("register fork in installed_plugins: %w", err)
 	}
 
-	// Write forks.json.
+	// Enable the fork in Claude Code settings.
+	if err := claudecfg.SetPluginEnabled(req.SettingsPath, forkFullName, true); err != nil {
+		return Result{}, fmt.Errorf("enable fork in settings: %w", err)
+	}
+
+	// Disable the upstream plugin.
+	if err := claudecfg.SetPluginEnabled(req.SettingsPath, p.FullName, false); err != nil {
+		return Result{}, fmt.Errorf("disable upstream in settings: %w", err)
+	}
+
+	// Record provenance in forks.json.
 	ff, err := forks.Load(req.ForksPath)
 	if err != nil {
-		return res, fmt.Errorf("load forks: %w", err)
+		return Result{}, fmt.Errorf("load forks: %w", err)
 	}
-	ff.Forks[req.Plugin.FullName] = forks.Fork{
-		ForkedAt:       time.Now().UTC(),
-		SourceVersion:  req.Plugin.GitCommitSha,
-		PluginDisabled: true,
-		Skills:         res.ForkedSkills,
-		Hooks:          res.ForkedHooks,
-		Skipped:        res.Skipped,
+	ff.Forks[p.FullName] = forks.Fork{
+		ForkedAt:         now,
+		SourceVersion:    p.GitCommitSha,
+		UpstreamFullName: p.FullName,
+		ForkFullName:     forkFullName,
+		BundlePath:       bundleDest,
+		UpstreamDisabled: true,
 	}
 	if err := forks.Save(req.ForksPath, ff); err != nil {
-		return res, fmt.Errorf("save forks: %w", err)
+		return Result{}, fmt.Errorf("save forks: %w", err)
 	}
 
-	// Disable the original plugin.
-	if err := claudecfg.SetPluginEnabled(req.SettingsPath, req.Plugin.FullName, false); err != nil {
-		return res, fmt.Errorf("disable plugin in settings: %w", err)
-	}
-
-	// Surface non-fatal copy errors as a combined error on partial success.
-	if len(copyErrs) > 0 {
-		var b strings.Builder
-		for _, e := range copyErrs {
-			b.WriteString("\n  ")
-			b.WriteString(e.Error())
-		}
-		return res, fmt.Errorf("partial fork (some components skipped):%s", b.String())
-	}
-
-	return res, nil
-}
-
-func resolveComponents(req Request) (skills, hooks []string) {
-	switch req.Scope {
-	case ScopeFull:
-		return req.Plugin.Skills, req.Plugin.Hooks
-	default: // ScopeSkill
-		return req.Skills, nil
-	}
+	return Result{BundlePath: bundleDest, ForkFullName: forkFullName}, nil
 }

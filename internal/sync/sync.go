@@ -30,7 +30,6 @@ const (
 // PluginRef identifies the Claude Code plugin that produced a ghost entry.
 type PluginRef struct {
 	FullName string // "plugin@marketplace"
-	Forked   bool   // true if this skill was already forked into agentcfg source
 }
 
 // Entry is the per-(target, item) state used for listing.

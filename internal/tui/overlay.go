@@ -1290,28 +1290,25 @@ func (o *saveVersionOverlay) View(w int) string {
 
 // ── forkOverlay ───────────────────────────────────────────────────────────────
 
-// forkOverlay shows a scope confirmation (ScopeFull or ScopeSkill) before
-// executing the fork. For ScopeFull it goes straight to confirmation; for
-// ScopeSkill it shows the scope picker so the user can upgrade to ScopeFull.
+// forkOverlay confirms forking an entire plugin bundle into the agentcfg fork
+// marketplace before executing the operation.
 type forkOverlay struct {
-	plugin       plugins.Plugin
-	scope        fork.Scope
-	skills       []string // used for ScopeSkill
-	sourceRoot   string
-	forksPath    string
-	settingsPath string
-	fullSelected bool // true = user upgraded to ScopeFull in the picker
+	plugin               plugins.Plugin
+	forksRoot            string
+	forksPath            string
+	settingsPath         string
+	knownMPPath          string
+	installedPluginsPath string
 }
 
-func newForkOverlay(plugin plugins.Plugin, scope fork.Scope, skills []string, sourceRoot, forksPath, settingsPath string) *forkOverlay {
+func newForkOverlay(plugin plugins.Plugin, forksRoot, forksPath, settingsPath, knownMPPath, installedPluginsPath string) *forkOverlay {
 	return &forkOverlay{
-		plugin:       plugin,
-		scope:        scope,
-		skills:       skills,
-		sourceRoot:   sourceRoot,
-		forksPath:    forksPath,
-		settingsPath: settingsPath,
-		fullSelected: scope == fork.ScopeFull,
+		plugin:               plugin,
+		forksRoot:            forksRoot,
+		forksPath:            forksPath,
+		settingsPath:         settingsPath,
+		knownMPPath:          knownMPPath,
+		installedPluginsPath: installedPluginsPath,
 	}
 }
 
@@ -1325,37 +1322,21 @@ func (o *forkOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
 		return nil, tea.Quit
 	case "esc":
 		return nil, nil
-	case "left", "right", " ":
-		// Toggle between skill-only and full-plugin when in ScopeSkill mode.
-		if o.scope == fork.ScopeSkill {
-			o.fullSelected = !o.fullSelected
-		}
 	case "enter", "y", "Y":
-		effectiveScope := o.scope
-		if o.fullSelected {
-			effectiveScope = fork.ScopeFull
-		}
 		req := fork.Request{
-			Plugin:       o.plugin,
-			Scope:        effectiveScope,
-			Skills:       o.skills,
-			SourceRoot:   o.sourceRoot,
-			ForksPath:    o.forksPath,
-			SettingsPath: o.settingsPath,
+			Plugin:                o.plugin,
+			ForksRoot:             o.forksRoot,
+			ForksPath:             o.forksPath,
+			SettingsPath:          o.settingsPath,
+			KnownMarketplacesPath: o.knownMPPath,
+			InstalledPluginsPath:  o.installedPluginsPath,
 		}
 		return nil, func() tea.Msg {
 			res, err := fork.Execute(req)
 			if err != nil {
 				return cfgReloadMsg{err: err}
 			}
-			parts := []string{fmt.Sprintf("forked: %d skills, %d hooks", len(res.ForkedSkills), len(res.ForkedHooks))}
-			if len(res.Skipped.MCPServers) > 0 {
-				parts = append(parts, fmt.Sprintf("skipped MCP: %s", strings.Join(res.Skipped.MCPServers, ", ")))
-			}
-			if len(res.Skipped.LSPServers) > 0 {
-				parts = append(parts, fmt.Sprintf("skipped LSP: %s", strings.Join(res.Skipped.LSPServers, ", ")))
-			}
-			return cfgReloadMsg{status: strings.Join(parts, "  ·  ")}
+			return cfgReloadMsg{status: fmt.Sprintf("forked → %s", res.ForkFullName)}
 		}
 	}
 	return o, nil
@@ -1365,110 +1346,19 @@ func (o *forkOverlay) View(w int) string {
 	var sb strings.Builder
 	title := fmt.Sprintf("Fork %q", o.plugin.FullName)
 
-	otherCount := len(o.plugin.Skills) - len(o.skills)
-	hasOther := o.scope == fork.ScopeSkill && otherCount > 0
-
-	if o.scope == fork.ScopeSkill && hasOther {
-		// Scope picker.
-		fmt.Fprintf(&sb, "Selected: %s\n\n", strings.Join(o.skills, ", "))
-
-		skillLabel := "Fork this skill only"
-		if len(o.skills) > 1 {
-			skillLabel = fmt.Sprintf("Fork these %d skills only", len(o.skills))
-		}
-		fullLabel := "Fork full plugin (recommended)"
-
-		if o.fullSelected {
-			fmt.Fprintf(&sb, "  %s  %s\n", dimStyle.Render("[ ]"), skillLabel)
-			fmt.Fprintf(&sb, "  %s  %s\n", tabActiveStyle.Render("[x]"), fullLabel)
-			if otherCount > 0 {
-				fmt.Fprintf(&sb, "\n%s\n", dimStyle.Render(fmt.Sprintf("  Includes %d other skills + hooks. Plugin disabled.", otherCount)))
-			}
-		} else {
-			fmt.Fprintf(&sb, "  %s  %s\n", tabActiveStyle.Render("[x]"), skillLabel)
-			fmt.Fprintf(&sb, "  %s  %s\n", dimStyle.Render("[ ]"), fullLabel)
-			if otherCount > 0 {
-				fmt.Fprintf(&sb, "\n%s\n", dimStyle.Render(fmt.Sprintf("  %d other skills will be deactivated. Plugin disabled.", otherCount)))
-			}
-		}
-
-		if len(o.plugin.MCPServers)+len(o.plugin.LSPServers) > 0 {
-			servers := append(o.plugin.MCPServers, o.plugin.LSPServers...)
-			fmt.Fprintf(&sb, "\n%s\n", dimStyle.Render("  Note: cannot file-fork: "+strings.Join(servers, ", ")))
-		}
-		fmt.Fprintf(&sb, "\n%s  %s", dimStyle.Render("← → toggle scope"), dimStyle.Render("Enter confirm · Esc cancel"))
-	} else {
-		// Full-plugin confirmation.
-		if len(o.plugin.Skills) > 0 {
-			fmt.Fprintf(&sb, "Skills:  %s\n", strings.Join(o.plugin.Skills, ", "))
-		}
-		if len(o.plugin.Hooks) > 0 {
-			fmt.Fprintf(&sb, "Hooks:   %s\n", strings.Join(o.plugin.Hooks, ", "))
-		}
-		sb.WriteString("\nPlugin will be disabled after fork.\n")
-		if len(o.plugin.MCPServers)+len(o.plugin.LSPServers) > 0 {
-			servers := append(o.plugin.MCPServers, o.plugin.LSPServers...)
-			sb.WriteString(dimStyle.Render("\nSkipped (re-add manually): "+strings.Join(servers, ", ")) + "\n")
-		}
-		fmt.Fprintf(&sb, "\n%s  %s", tabActiveStyle.Render("[ Enter ]"), dimStyle.Render("confirm · Esc cancel"))
+	sb.WriteString("Copies the full plugin bundle into:\n")
+	sb.WriteString(dimStyle.Render("  ~/.agentcfg/forks/plugins/"+o.plugin.Name) + "\n\n")
+	if len(o.plugin.Skills) > 0 {
+		fmt.Fprintf(&sb, "Skills:  %s\n", strings.Join(o.plugin.Skills, ", "))
 	}
-	return renderOverlayBox(w, strings.TrimRight(sb.String(), "\n"), title, 58)
-}
-
-// ── forkSkillPickerOverlay ────────────────────────────────────────────────────
-
-// forkSkillPickerOverlay lets the user pick individual skills from a plugin
-// before deciding the fork scope.
-type forkSkillPickerOverlay struct {
-	plugin       plugins.Plugin
-	ms           multiSelect
-	sourceRoot   string
-	forksPath    string
-	settingsPath string
-}
-
-func newForkSkillPickerOverlay(plugin plugins.Plugin, sourceRoot, forksPath, settingsPath string, _ *plugins.Registry) *forkSkillPickerOverlay {
-	items := make([]msItem, len(plugin.Skills))
-	for i, s := range plugin.Skills {
-		items[i] = msItem{label: s, value: s}
+	if len(o.plugin.Hooks) > 0 {
+		fmt.Fprintf(&sb, "Hooks:   %s\n", strings.Join(o.plugin.Hooks, ", "))
 	}
-	return &forkSkillPickerOverlay{
-		plugin:       plugin,
-		ms:           newMultiSelect(items, 10),
-		sourceRoot:   sourceRoot,
-		forksPath:    forksPath,
-		settingsPath: settingsPath,
+	if len(o.plugin.MCPServers) > 0 {
+		fmt.Fprintf(&sb, "MCP:     %s\n", strings.Join(o.plugin.MCPServers, ", "))
 	}
-}
+	sb.WriteString("\nUpstream plugin disabled, fork enabled.\n")
+	fmt.Fprintf(&sb, "\n%s  %s", tabActiveStyle.Render("[ Enter ]"), dimStyle.Render("confirm · Esc cancel"))
 
-func (o *forkSkillPickerOverlay) Update(msg tea.Msg) (overlayModel, tea.Cmd) {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return o, nil
-	}
-	switch key.String() {
-	case "ctrl+c":
-		return nil, tea.Quit
-	case "esc":
-		return nil, nil
-	case "enter":
-		selected := o.ms.selectedItems()
-		if len(selected) == 0 {
-			return o, nil
-		}
-		skills := make([]string, len(selected))
-		for i, it := range selected {
-			skills[i] = it.value
-		}
-		return newForkOverlay(o.plugin, fork.ScopeSkill, skills, o.sourceRoot, o.forksPath, o.settingsPath), nil
-	default:
-		o.ms.handleKey(key.String())
-	}
-	return o, nil
-}
-
-func (o *forkSkillPickerOverlay) View(w int) string {
-	content := o.ms.View() + "\n\n" +
-		dimStyle.Render("Space select · ctrl+a all · Enter next · Esc cancel")
-	return renderOverlayBox(w, content, fmt.Sprintf("Pick skills from %q", o.plugin.Name), 52)
+	return renderOverlayBox(w, strings.TrimRight(sb.String(), "\n"), title, 60)
 }

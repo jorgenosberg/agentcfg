@@ -20,10 +20,10 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/backup"
 	"github.com/jorgenosberg/agentcfg/internal/claudecfg"
 	"github.com/jorgenosberg/agentcfg/internal/config"
-	"github.com/jorgenosberg/agentcfg/internal/fork"
 	"github.com/jorgenosberg/agentcfg/internal/forks"
 	"github.com/jorgenosberg/agentcfg/internal/icons"
 	"github.com/jorgenosberg/agentcfg/internal/lock"
+	"github.com/jorgenosberg/agentcfg/internal/marketplace"
 	"github.com/jorgenosberg/agentcfg/internal/plugins"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
@@ -75,17 +75,20 @@ func scanAllProjects(cfg config.Config) []source.ProjectItem {
 }
 
 type model struct {
-	cfgPath       string
-	cfg           config.Config
-	items         []source.Item
-	entries       []sync.Entry
-	targetEntries []sync.Entry
-	projectItems  []source.ProjectItem
-	pluginReg     *plugins.Registry
-	forkFile      *forks.ForkFile
-	forksPath     string
-	settingsPath  string
-	cursor        int
+	cfgPath              string
+	cfg                  config.Config
+	items                []source.Item
+	entries              []sync.Entry
+	targetEntries        []sync.Entry
+	projectItems         []source.ProjectItem
+	pluginReg            *plugins.Registry
+	forkFile             *forks.ForkFile
+	forksPath            string
+	forksRoot            string
+	settingsPath         string
+	knownMPPath          string
+	installedPluginsPath string
+	cursor               int
 	offset        int
 	width         int
 	height        int
@@ -119,20 +122,26 @@ func newModel(cfgPath string, cfg config.Config, items []source.Item, projectIte
 	forksPath, _ := forks.DefaultPath()
 	forkFile, _ := forks.Load(forksPath)
 	settingsPath, _ := claudecfgDefaultPath()
+	forksRoot, _ := marketplace.DefaultForksRoot()
+	knownMPPath, _ := marketplace.DefaultKnownMarketplacesPath()
+	installedPluginsPath, _ := marketplace.DefaultInstalledPluginsPath()
 	baseEntries := sync.Inspect(cfg, items)
 	ghosts := synthesizeGhosts(pluginReg, forkFile, cfg, items)
 	return model{
-		cfgPath:       cfgPath,
-		cfg:           cfg,
-		items:         items,
-		entries:       append(baseEntries, ghosts...),
-		targetEntries: sync.ScanTargetDirs(cfg, items),
-		projectItems:  projectItems,
-		pluginReg:     pluginReg,
-		forkFile:      forkFile,
-		forksPath:     forksPath,
-		settingsPath:  settingsPath,
-		status:        "ready",
+		cfgPath:              cfgPath,
+		cfg:                  cfg,
+		items:                items,
+		entries:              append(baseEntries, ghosts...),
+		targetEntries:        sync.ScanTargetDirs(cfg, items),
+		projectItems:         projectItems,
+		pluginReg:            pluginReg,
+		forkFile:             forkFile,
+		forksPath:            forksPath,
+		forksRoot:            forksRoot,
+		settingsPath:         settingsPath,
+		knownMPPath:          knownMPPath,
+		installedPluginsPath: installedPluginsPath,
+		status:               "ready",
 	}
 }
 
@@ -143,6 +152,8 @@ func claudecfgDefaultPath() (string, error) {
 // synthesizeGhosts creates ghost entries for skills that belong to disabled
 // plugins but are not present in the agentcfg source tree. These appear in
 // the main view so nothing silently disappears when a plugin is disabled.
+// Plugins that have been forked into the agentcfg fork marketplace are skipped
+// entirely — their bundle is intact and managed there.
 func synthesizeGhosts(reg *plugins.Registry, ff *forks.ForkFile, cfg config.Config, managedItems []source.Item) []sync.Entry {
 	if reg == nil || len(cfg.Targets) == 0 {
 		return nil
@@ -158,11 +169,14 @@ func synthesizeGhosts(reg *plugins.Registry, ff *forks.ForkFile, cfg config.Conf
 		if p.Enabled {
 			continue
 		}
+		// A forked plugin's bundle lives in the fork marketplace — don't ghost it.
+		if ff.PluginForked(p.FullName) {
+			continue
+		}
 		for _, skillName := range p.Skills {
 			if managed[skillName] {
 				continue
 			}
-			forked := ff.IsForked(p.FullName, skillName)
 			for _, t := range cfg.Targets {
 				out = append(out, sync.Entry{
 					Target: t,
@@ -174,7 +188,6 @@ func synthesizeGhosts(reg *plugins.Registry, ff *forks.ForkFile, cfg config.Conf
 					Status: sync.StatusPluginSibling,
 					Plugin: &sync.PluginRef{
 						FullName: p.FullName,
-						Forked:   forked,
 					},
 				})
 			}
@@ -1823,31 +1836,23 @@ func (m model) buildPluginItemActions() []paletteAction {
 		return nil
 	}
 	p := m.pluginReg.Plugins[m.cursor]
-	reg := m.pluginReg
 	ff := m.forkFile
+	forksRoot := m.forksRoot
 	forksPath := m.forksPath
 	settingsPath := m.settingsPath
-	sourceRoot := m.cfg.Source
+	knownMPPath := m.knownMPPath
+	installedPluginsPath := m.installedPluginsPath
 
 	var actions []paletteAction
 
-	if !ff.PluginForked(p.FullName) && p.Installed && len(p.Skills)+len(p.Hooks) > 0 {
+	if !ff.PluginForked(p.FullName) && p.Installed {
 		plugin := p
 		actions = append(actions, paletteAction{
-			label: "Fork full plugin (copy all skills & hooks)",
+			label: "Fork plugin (own a full copy)",
 			fn: func() (overlayModel, tea.Cmd) {
-				return newForkOverlay(plugin, fork.ScopeFull, nil, sourceRoot, forksPath, settingsPath), nil
+				return newForkOverlay(plugin, forksRoot, forksPath, settingsPath, knownMPPath, installedPluginsPath), nil
 			},
 		})
-		if len(p.Skills) > 0 {
-			plugin := p
-			actions = append(actions, paletteAction{
-				label: "Fork selected skills…",
-				fn: func() (overlayModel, tea.Cmd) {
-					return newForkSkillPickerOverlay(plugin, sourceRoot, forksPath, settingsPath, reg), nil
-				},
-			})
-		}
 	}
 
 	if p.Enabled {
@@ -1880,8 +1885,6 @@ func (m model) buildPluginItemActions() []paletteAction {
 		})
 	}
 
-	_ = ff
-	_ = reg
 	return actions
 }
 

@@ -8,17 +8,39 @@ import (
 	"testing"
 )
 
-// buildForkFixture creates a sandboxed claude plugin environment under home
-// with one installed plugin ("myplugin@market") containing one skill and one
-// hook. Returns the plugin's install directory.
+// assertPluginEnabled reads settingsPath and asserts the named plugin's enabled
+// state matches want, parsing the JSON rather than doing string matching.
+func assertPluginEnabled(t *testing.T, settingsPath, pluginName string, want bool) {
+	t.Helper()
+	raw, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("read settings.json: %v", err)
+	}
+	var doc struct {
+		EnabledPlugins map[string]bool `json:"enabledPlugins"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse settings.json: %v", err)
+	}
+	if got := doc.EnabledPlugins[pluginName]; got != want {
+		t.Errorf("enabledPlugins[%q]: got %v want %v (settings: %s)", pluginName, got, want, raw)
+	}
+}
+
+// buildForkFixture creates a sandboxed Claude plugin environment with one
+// installed plugin ("myplugin@market") containing a full bundle.
 //
 // Directory layout created:
 //
-//	<home>/.claude/settings.json           — enabledPlugins: {myplugin@market: true}
+//	<home>/.claude/settings.json                     — enabledPlugins: {myplugin@market: true}
 //	<home>/.claude/plugins/installed_plugins.json
 //	<home>/.claude/plugins/plugin-catalog-cache.json
+//	<home>/.claude/plugins/known_marketplaces.json   — empty {}
 //	<home>/.claude/plugins/cache/market/myplugin/1.0.0/skills/my-skill/SKILL.md
+//	<home>/.claude/plugins/cache/market/myplugin/1.0.0/commands/review.md
+//	<home>/.claude/plugins/cache/market/myplugin/1.0.0/agents/helper.md
 //	<home>/.claude/plugins/cache/market/myplugin/1.0.0/hooks/my-hook.sh
+//	<home>/.claude/plugins/cache/market/myplugin/1.0.0/bin/tool
 func buildForkFixture(t *testing.T, home string) string {
 	t.Helper()
 
@@ -29,10 +51,14 @@ func buildForkFixture(t *testing.T, home string) string {
 	mkfile(t, filepath.Join(claudeDir, "settings.json"),
 		`{"enabledPlugins":{"myplugin@market":true}}`)
 
-	// skill directory
+	// Full bundle: skills, commands, agents, hooks, bin
 	mkfile(t, filepath.Join(installDir, "skills", "my-skill", "SKILL.md"), "# my skill")
-	// hook file
+	mkfile(t, filepath.Join(installDir, "commands", "review.md"), "# review command")
+	mkfile(t, filepath.Join(installDir, "agents", "helper.md"), "# agent")
 	mkfile(t, filepath.Join(installDir, "hooks", "my-hook.sh"), "#!/bin/sh\necho hook")
+	mkfile(t, filepath.Join(installDir, "bin", "tool"), "#!/bin/sh\necho tool")
+	mkfile(t, filepath.Join(installDir, ".claude-plugin", "plugin.json"),
+		`{"name":"myplugin","version":"1.0.0"}`)
 
 	installed := map[string]any{
 		"version": 2,
@@ -64,6 +90,9 @@ func buildForkFixture(t *testing.T, home string) string {
 	}
 	writeJSONFile(t, filepath.Join(pluginsDir, "plugin-catalog-cache.json"), catalog)
 
+	// Empty known_marketplaces.json so RegisterMarketplace has a file to update.
+	writeJSONFile(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]any{})
+
 	return installDir
 }
 
@@ -83,27 +112,31 @@ func TestForkCmd_FullFork(t *testing.T) {
 	seedConfig(t, home, cfg)
 	buildForkFixture(t, home)
 
-	out, err := runCLI(t, "fork", "myplugin@market", "--full")
+	out, err := runCLI(t, "fork", "myplugin@market")
 	if err != nil {
 		t.Fatalf("fork: %v\noutput: %s", err, out)
 	}
 	if !strings.Contains(out, "forked") {
 		t.Errorf("expected 'forked' in output: %s", out)
 	}
-	if !strings.Contains(out, "my-skill") {
-		t.Errorf("expected skill name in output: %s", out)
+
+	// Bundle should be in ~/.agentcfg/forks/plugins/myplugin
+	bundleDest := filepath.Join(home, ".agentcfg", "forks", "plugins", "myplugin")
+	if fi, err := os.Stat(bundleDest); err != nil || !fi.IsDir() {
+		t.Errorf("bundle dir not found at %s: %v", bundleDest, err)
 	}
 
-	// Skill should be copied into source tree.
-	dest := filepath.Join(cfg.Source, "skills", "my-skill")
-	if fi, err := os.Stat(dest); err != nil || !fi.IsDir() {
-		t.Errorf("forked skill not found at %s: %v", dest, err)
-	}
-
-	// Hook should also be copied (--full).
-	hookDest := filepath.Join(cfg.Source, "hooks", "my-hook.sh")
-	if _, err := os.Stat(hookDest); err != nil {
-		t.Errorf("forked hook not found at %s: %v", hookDest, err)
+	// commands/ and agents/ must be copied too (not just skills/hooks).
+	for _, rel := range []string{
+		"skills/my-skill/SKILL.md",
+		"commands/review.md",
+		"agents/helper.md",
+		"hooks/my-hook.sh",
+		"bin/tool",
+	} {
+		if _, err := os.Stat(filepath.Join(bundleDest, rel)); err != nil {
+			t.Errorf("expected bundle file %s not found: %v", rel, err)
+		}
 	}
 
 	// forks.json should record the fork.
@@ -112,35 +145,10 @@ func TestForkCmd_FullFork(t *testing.T) {
 		t.Errorf("forks.json not created: %v", err)
 	}
 
-	// Plugin should be disabled in settings.
+	// Plugin should be disabled in settings; fork enabled.
 	settingsPath := filepath.Join(home, ".claude", "settings.json")
-	raw, _ := os.ReadFile(settingsPath)
-	if strings.Contains(string(raw), `"myplugin@market":true`) {
-		t.Error("plugin should be disabled in settings after fork")
-	}
-}
-
-func TestForkCmd_SkillOnly(t *testing.T) {
-	home := sandbox(t)
-	cfg := defaultConfig(home)
-	seedConfig(t, home, cfg)
-	buildForkFixture(t, home)
-
-	out, err := runCLI(t, "fork", "myplugin@market", "--skill", "my-skill")
-	if err != nil {
-		t.Fatalf("fork --skill: %v\noutput: %s", err, out)
-	}
-
-	// Skill copied.
-	dest := filepath.Join(cfg.Source, "skills", "my-skill")
-	if _, err := os.Stat(dest); err != nil {
-		t.Errorf("forked skill not found at %s: %v", dest, err)
-	}
-	// Hook NOT copied (scope is skill-only).
-	hookDest := filepath.Join(cfg.Source, "hooks", "my-hook.sh")
-	if _, err := os.Stat(hookDest); err == nil {
-		t.Error("hook should not be copied in skill-only fork")
-	}
+	assertPluginEnabled(t, settingsPath, "myplugin@agentcfg-forks", true)
+	assertPluginEnabled(t, settingsPath, "myplugin@market", false)
 }
 
 func TestForkCmd_DryRun(t *testing.T) {
@@ -158,9 +166,9 @@ func TestForkCmd_DryRun(t *testing.T) {
 	}
 
 	// Nothing should actually be written.
-	dest := filepath.Join(cfg.Source, "skills", "my-skill")
-	if _, err := os.Stat(dest); err == nil {
-		t.Error("dry-run must not create files")
+	bundleDest := filepath.Join(home, ".agentcfg", "forks", "plugins", "myplugin")
+	if _, err := os.Stat(bundleDest); err == nil {
+		t.Error("dry-run must not create the bundle directory")
 	}
 }
 
@@ -190,14 +198,14 @@ func TestForkListCmd_EmptyWhenNoForks(t *testing.T) {
 	}
 }
 
-func TestForkListCmd_ShowsForkedPlugin(t *testing.T) {
+func TestForkListCmd_ShowsBundlePath(t *testing.T) {
 	home := sandbox(t)
 	cfg := defaultConfig(home)
 	seedConfig(t, home, cfg)
 	buildForkFixture(t, home)
 
 	// Fork first.
-	if _, err := runCLI(t, "fork", "myplugin@market", "--full"); err != nil {
+	if _, err := runCLI(t, "fork", "myplugin@market"); err != nil {
 		t.Fatalf("fork: %v", err)
 	}
 
@@ -208,8 +216,9 @@ func TestForkListCmd_ShowsForkedPlugin(t *testing.T) {
 	if !strings.Contains(out, "myplugin@market") {
 		t.Errorf("expected plugin name in fork list: %s", out)
 	}
-	if !strings.Contains(out, "my-skill") {
-		t.Errorf("expected skill name in fork list: %s", out)
+	// List now shows BUNDLE column (path), not SKILLS.
+	if !strings.Contains(out, "forks") {
+		t.Errorf("expected bundle path in fork list: %s", out)
 	}
 }
 
@@ -234,11 +243,11 @@ func TestForkStatusCmd_UpToDate(t *testing.T) {
 	buildForkFixture(t, home)
 
 	// Fork; forks.json will record the SHA "deadbeef1234".
-	if _, err := runCLI(t, "fork", "myplugin@market", "--full"); err != nil {
+	if _, err := runCLI(t, "fork", "myplugin@market"); err != nil {
 		t.Fatalf("fork: %v", err)
 	}
 
-	// The installed plugin still has the same SHA, so status = up-to-date.
+	// The installed upstream still has the same SHA → status = up-to-date.
 	out, err := runCLI(t, "fork", "status")
 	if err != nil {
 		t.Fatalf("fork status: %v\noutput: %s", err, out)

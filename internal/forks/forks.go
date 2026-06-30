@@ -12,30 +12,24 @@ import (
 // ForkFile is the on-disk schema for ~/.agentcfg/forks.json.
 type ForkFile struct {
 	Version int             `json:"version"`
-	Forks   map[string]Fork `json:"forks"` // keyed by "plugin@marketplace"
+	Forks   map[string]Fork `json:"forks"` // keyed by upstream "plugin@marketplace"
 }
 
 // Fork records one plugin fork operation.
 type Fork struct {
-	ForkedAt       time.Time `json:"forked_at"`
-	SourceVersion  string    `json:"source_version"`
-	PluginDisabled bool      `json:"plugin_disabled"`
-	Skills         []string  `json:"skills"`
-	Hooks          []string  `json:"hooks"`
-	Skipped        Skipped   `json:"skipped"`
-}
-
-// Skipped lists components that could not be file-forked.
-type Skipped struct {
-	MCPServers []string `json:"mcp_servers,omitempty"`
-	LSPServers []string `json:"lsp_servers,omitempty"`
+	ForkedAt         time.Time `json:"forked_at"`
+	SourceVersion    string    `json:"source_version"`    // upstream GitCommitSha at fork time
+	UpstreamFullName string    `json:"upstream_full_name"` // "<name>@<marketplace>"
+	ForkFullName     string    `json:"fork_full_name"`     // "<name>@agentcfg-forks"
+	BundlePath       string    `json:"bundle_path"`        // ~/.agentcfg/forks/plugins/<name>
+	UpstreamDisabled bool      `json:"upstream_disabled"`
 }
 
 // Load reads the forks file at path. Returns an empty ForkFile if the file is missing.
 func Load(path string) (*ForkFile, error) {
 	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return &ForkFile{Version: 1, Forks: map[string]Fork{}}, nil
+		return &ForkFile{Version: 2, Forks: map[string]Fork{}}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -75,29 +69,11 @@ func DefaultPath() (string, error) {
 	return filepath.Join(home, ".agentcfg", "forks.json"), nil
 }
 
-// IsForked reports whether pluginFullName was forked and the given skillName is
-// among the skills that were copied.
-func (f *ForkFile) IsForked(pluginFullName, skillName string) bool {
+// PluginForked reports whether the given upstream plugin full name was forked.
+func (f *ForkFile) PluginForked(upstreamFullName string) bool {
 	if f == nil {
 		return false
 	}
-	fork, ok := f.Forks[pluginFullName]
-	if !ok {
-		return false
-	}
-	for _, s := range fork.Skills {
-		if s == skillName {
-			return true
-		}
-	}
-	return false
-}
-
-// PluginForked reports whether any component of the given plugin was forked.
-func (f *ForkFile) PluginForked(pluginFullName string) bool {
-	if f == nil {
-		return false
-	}
-	_, ok := f.Forks[pluginFullName]
+	_, ok := f.Forks[upstreamFullName]
 	return ok
 }

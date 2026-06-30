@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/fork"
 	"github.com/jorgenosberg/agentcfg/internal/forks"
+	"github.com/jorgenosberg/agentcfg/internal/marketplace"
 	"github.com/jorgenosberg/agentcfg/internal/paths"
 	"github.com/jorgenosberg/agentcfg/internal/plugins"
 )
@@ -25,21 +25,16 @@ import (
 //	agentcfg fork <plugin@marketplace>   # fork a plugin
 //	agentcfg fork list                   # list recorded forks
 //	agentcfg fork status                 # check drift vs upstream
-func newForkCmd(load func() (config.Config, error)) *cobra.Command {
-	var skillNames []string
-	var full bool
+func newForkCmd(_ func() (config.Config, error)) *cobra.Command { //nolint:unparam
 	var dryRun bool
 
 	c := &cobra.Command{
 		Use:   "fork <plugin@marketplace>",
-		Short: "Fork a Claude plugin into the agentcfg source tree",
-		Long: "fork copies a Claude Code plugin's skills and hooks into the " +
-			"agentcfg source tree, records provenance, and disables the " +
-			"upstream plugin. Forked items are then managed like any other " +
-			"source item.\n\n" +
-			"Pass --skill <name> one or more times to fork individual skills " +
-			"only. Pass --full to fork all skills and hooks (default when no " +
-			"--skill is given).\n\n" +
+		Short: "Fork a Claude plugin into the agentcfg-owned marketplace",
+		Long: "fork copies a Claude Code plugin's entire bundle into the agentcfg " +
+			"fork marketplace (~/.agentcfg/forks/), registers it with Claude Code, " +
+			"disables the upstream plugin, and enables the fork. You own the copy " +
+			"and can edit any file in it directly.\n\n" +
 			"Use the `list` and `status` subcommands to inspect recorded forks.",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -47,11 +42,6 @@ func newForkCmd(load func() (config.Config, error)) *cobra.Command {
 				return cmd.Help()
 			}
 			fullName := args[0]
-
-			cfg, err := load()
-			if err != nil {
-				return err
-			}
 
 			reg, err := plugins.Load()
 			if err != nil {
@@ -65,11 +55,10 @@ func newForkCmd(load func() (config.Config, error)) *cobra.Command {
 				return fmt.Errorf("plugin %q is not installed", fullName)
 			}
 
-			scope := fork.ScopeSkill
-			if full || len(skillNames) == 0 {
-				scope = fork.ScopeFull
+			forksRoot, err := marketplace.DefaultForksRoot()
+			if err != nil {
+				return fmt.Errorf("resolve forks root: %w", err)
 			}
-
 			forksPath, err := defaultForksPath()
 			if err != nil {
 				return err
@@ -78,50 +67,49 @@ func newForkCmd(load func() (config.Config, error)) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolve settings path: %w", err)
 			}
-
-			req := fork.Request{
-				Plugin:       plugin,
-				Scope:        scope,
-				Skills:       skillNames,
-				SourceRoot:   cfg.Source,
-				ForksPath:    forksPath,
-				SettingsPath: settingsPath,
+			knownMPPath, err := marketplace.DefaultKnownMarketplacesPath()
+			if err != nil {
+				return fmt.Errorf("resolve known_marketplaces path: %w", err)
+			}
+			installedPath, err := marketplace.DefaultInstalledPluginsPath()
+			if err != nil {
+				return fmt.Errorf("resolve installed_plugins path: %w", err)
 			}
 
 			if dryRun {
-				skills, hooks := resolveDryRunComponents(req)
+				bundleDest := marketplace.BundlePath(forksRoot, plugin.Name)
+				forkFullName := marketplace.ForkFullName(plugin.Name)
 				fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would fork %q\n", fullName)
-				fmt.Fprintf(cmd.OutOrStdout(), "  skills: %s\n", joinOrNone(skills))
-				fmt.Fprintf(cmd.OutOrStdout(), "  hooks:  %s\n", joinOrNone(hooks))
-				if len(plugin.MCPServers)+len(plugin.LSPServers) > 0 {
-					fmt.Fprintf(cmd.OutOrStdout(), "  skipped (cannot file-fork): mcp=%v lsp=%v\n",
-						plugin.MCPServers, plugin.LSPServers)
-				}
+				fmt.Fprintf(cmd.OutOrStdout(), "  bundle source:  %s\n", plugin.InstallPath)
+				fmt.Fprintf(cmd.OutOrStdout(), "  bundle dest:    %s\n", bundleDest)
+				fmt.Fprintf(cmd.OutOrStdout(), "  fork identity:  %s\n", forkFullName)
+				fmt.Fprintf(cmd.OutOrStdout(), "  enable:         %s\n", forkFullName)
+				fmt.Fprintf(cmd.OutOrStdout(), "  disable:        %s\n", fullName)
 				return nil
 			}
 
+			req := fork.Request{
+				Plugin:                plugin,
+				ForksRoot:             forksRoot,
+				ForksPath:             forksPath,
+				SettingsPath:          settingsPath,
+				KnownMarketplacesPath: knownMPPath,
+				InstalledPluginsPath:  installedPath,
+			}
+
 			res, err := fork.Execute(req)
-			if err != nil && len(res.ForkedSkills) == 0 && len(res.ForkedHooks) == 0 {
+			if err != nil {
 				return err
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), "forked %q\n", fullName)
-			fmt.Fprintf(cmd.OutOrStdout(), "  skills: %s\n", joinOrNone(res.ForkedSkills))
-			fmt.Fprintf(cmd.OutOrStdout(), "  hooks:  %s\n", joinOrNone(res.ForkedHooks))
-			if len(res.Skipped.MCPServers)+len(res.Skipped.LSPServers) > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "  skipped (cannot file-fork): mcp=%v lsp=%v\n",
-					res.Skipped.MCPServers, res.Skipped.LSPServers)
-			}
-			fmt.Fprintln(cmd.OutOrStdout(), "  plugin disabled in settings")
-			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), "  warning: %v\n", err)
-			}
+			fmt.Fprintf(cmd.OutOrStdout(), "  bundle: %s\n", res.BundlePath)
+			fmt.Fprintf(cmd.OutOrStdout(), "  fork:   %s (enabled)\n", res.ForkFullName)
+			fmt.Fprintf(cmd.OutOrStdout(), "  upstream %s disabled\n", fullName)
 			return nil
 		},
 	}
 
-	c.Flags().StringArrayVar(&skillNames, "skill", nil, "fork only this skill (repeatable)")
-	c.Flags().BoolVar(&full, "full", false, "fork all skills and hooks (default when no --skill given)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "print what would be forked without making changes")
 
 	c.AddCommand(
@@ -155,7 +143,7 @@ func newForkListCmd() *cobra.Command {
 }
 
 // newForkStatusCmd is "fork status": compares the recorded SourceVersion to the
-// currently installed plugin version (no network needed).
+// currently installed upstream plugin version (no network needed).
 func newForkStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
@@ -181,10 +169,10 @@ func newForkStatusCmd() *cobra.Command {
 
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "PLUGIN\tFORKED AT\tFORKED SHA\tCURRENT SHA\tSTATUS")
-			for fullName, f := range ff.Forks {
+			for upstreamName, f := range ff.Forks {
 				currentSHA := "(not installed)"
 				driftStatus := "plugin not installed"
-				if p, ok := reg.Get(fullName); ok {
+				if p, ok := reg.Get(upstreamName); ok {
 					currentSHA = shortSHA(p.GitCommitSha)
 					switch {
 					case p.GitCommitSha == "" || f.SourceVersion == "":
@@ -196,7 +184,7 @@ func newForkStatusCmd() *cobra.Command {
 					}
 				}
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-					fullName,
+					upstreamName,
 					f.ForkedAt.Format(time.DateOnly),
 					shortSHA(f.SourceVersion),
 					currentSHA,
@@ -218,22 +206,6 @@ func defaultForksPath() (string, error) {
 	return filepath.Join(home, ".agentcfg", "forks.json"), nil
 }
 
-func resolveDryRunComponents(req fork.Request) (skills, hooks []string) {
-	switch req.Scope {
-	case fork.ScopeFull:
-		return req.Plugin.Skills, req.Plugin.Hooks
-	default:
-		return req.Skills, nil
-	}
-}
-
-func joinOrNone(ss []string) string {
-	if len(ss) == 0 {
-		return "(none)"
-	}
-	return strings.Join(ss, ", ")
-}
-
 func shortSHA(sha string) string {
 	if len(sha) > 8 {
 		return sha[:8]
@@ -243,14 +215,13 @@ func shortSHA(sha string) string {
 
 func writeForkList(w io.Writer, ff *forks.ForkFile) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "PLUGIN\tFORKED AT\tSHA\tSKILLS\tHOOKS")
-	for fullName, f := range ff.Forks {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-			fullName,
+	fmt.Fprintln(tw, "PLUGIN\tFORKED AT\tSHA\tBUNDLE")
+	for upstreamName, f := range ff.Forks {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+			upstreamName,
 			f.ForkedAt.Format(time.DateOnly),
 			shortSHA(f.SourceVersion),
-			joinOrNone(f.Skills),
-			joinOrNone(f.Hooks),
+			f.BundlePath,
 		)
 	}
 	return tw.Flush()

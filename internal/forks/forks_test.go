@@ -18,6 +18,9 @@ func TestLoad_EmptyWhenMissing(t *testing.T) {
 	if f == nil || len(f.Forks) != 0 {
 		t.Error("expected empty ForkFile for missing file")
 	}
+	if f.Version != 2 {
+		t.Errorf("Version: got %d want 2", f.Version)
+	}
 }
 
 func TestSaveAndLoad_RoundTrip(t *testing.T) {
@@ -25,17 +28,15 @@ func TestSaveAndLoad_RoundTrip(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
 	original := &forks.ForkFile{
-		Version: 1,
+		Version: 2,
 		Forks: map[string]forks.Fork{
 			"alpha@official": {
-				ForkedAt:       now,
-				SourceVersion:  "abc123",
-				PluginDisabled: true,
-				Skills:         []string{"skill-a", "skill-b"},
-				Hooks:          []string{"hook-x"},
-				Skipped: forks.Skipped{
-					MCPServers: []string{"mcp-1"},
-				},
+				ForkedAt:         now,
+				SourceVersion:    "abc123",
+				UpstreamFullName: "alpha@official",
+				ForkFullName:     "alpha@agentcfg-forks",
+				BundlePath:       "/tmp/forks/plugins/alpha",
+				UpstreamDisabled: true,
 			},
 		},
 	}
@@ -59,17 +60,20 @@ func TestSaveAndLoad_RoundTrip(t *testing.T) {
 	if fork.SourceVersion != "abc123" {
 		t.Errorf("SourceVersion: got %q", fork.SourceVersion)
 	}
-	if len(fork.Skills) != 2 || fork.Skills[0] != "skill-a" {
-		t.Errorf("Skills: %v", fork.Skills)
+	if fork.ForkFullName != "alpha@agentcfg-forks" {
+		t.Errorf("ForkFullName: got %q", fork.ForkFullName)
 	}
-	if len(fork.Skipped.MCPServers) != 1 || fork.Skipped.MCPServers[0] != "mcp-1" {
-		t.Errorf("Skipped.MCPServers: %v", fork.Skipped.MCPServers)
+	if fork.BundlePath != "/tmp/forks/plugins/alpha" {
+		t.Errorf("BundlePath: got %q", fork.BundlePath)
+	}
+	if !fork.UpstreamDisabled {
+		t.Error("UpstreamDisabled should be true")
 	}
 }
 
 func TestSave_CreatesParentDirs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "subdir", "forks.json")
-	f := &forks.ForkFile{Version: 1, Forks: map[string]forks.Fork{}}
+	f := &forks.ForkFile{Version: 2, Forks: map[string]forks.Fork{}}
 	if err := forks.Save(path, f); err != nil {
 		t.Fatalf("Save with missing parent: %v", err)
 	}
@@ -78,30 +82,11 @@ func TestSave_CreatesParentDirs(t *testing.T) {
 	}
 }
 
-func TestIsForked(t *testing.T) {
-	f := &forks.ForkFile{
-		Version: 1,
-		Forks: map[string]forks.Fork{
-			"alpha@official": {Skills: []string{"skill-a", "skill-b"}},
-		},
-	}
-
-	if !f.IsForked("alpha@official", "skill-a") {
-		t.Error("skill-a should be forked")
-	}
-	if f.IsForked("alpha@official", "skill-c") {
-		t.Error("skill-c should not be forked")
-	}
-	if f.IsForked("beta@official", "skill-a") {
-		t.Error("unknown plugin should not be forked")
-	}
-}
-
 func TestPluginForked(t *testing.T) {
 	f := &forks.ForkFile{
-		Version: 1,
+		Version: 2,
 		Forks: map[string]forks.Fork{
-			"alpha@official": {},
+			"alpha@official": {ForkFullName: "alpha@agentcfg-forks"},
 		},
 	}
 	if !f.PluginForked("alpha@official") {
@@ -109,5 +94,10 @@ func TestPluginForked(t *testing.T) {
 	}
 	if f.PluginForked("beta@official") {
 		t.Error("beta should not be marked forked")
+	}
+
+	var nilFF *forks.ForkFile
+	if nilFF.PluginForked("anything") {
+		t.Error("nil ForkFile should return false")
 	}
 }
