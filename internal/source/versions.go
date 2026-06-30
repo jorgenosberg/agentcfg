@@ -84,6 +84,9 @@ func DeleteVersion(itemPath, name string) error {
 	return os.RemoveAll(path)
 }
 
+// vcopyAny is a snapshot copy (no symlink follow) used exclusively for versions.
+// It differs from sync.CopyAny intentionally: versions must capture the actual
+// bytes at that point in time, not re-resolve a symlink to a shared source.
 func vcopyAny(src, dst string) error {
 	fi, err := os.Stat(src)
 	if err != nil {
