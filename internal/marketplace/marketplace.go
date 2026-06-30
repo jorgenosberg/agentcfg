@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/jorgenosberg/agentcfg/internal/fsutil"
 	"github.com/jorgenosberg/agentcfg/internal/paths"
 	"github.com/jorgenosberg/agentcfg/internal/plugins"
 )
@@ -109,22 +110,6 @@ func AddPlugin(forksRoot string, p plugins.Plugin) error {
 // RegisterMarketplace adds agentcfg-forks to knownMarketplacesPath if absent.
 // The entry points at forksRoot as a local directory source. Idempotent.
 func RegisterMarketplace(knownMarketplacesPath, forksRoot string) error {
-	raw, err := os.ReadFile(knownMarketplacesPath)
-	if os.IsNotExist(err) {
-		raw = []byte("{}")
-	} else if err != nil {
-		return fmt.Errorf("read known_marketplaces: %w", err)
-	}
-
-	var doc map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		return fmt.Errorf("parse known_marketplaces: %w", err)
-	}
-
-	if _, exists := doc[MarketplaceName]; exists {
-		return nil
-	}
-
 	type mpSource struct {
 		Source string `json:"source"`
 		Path   string `json:"path"`
@@ -134,61 +119,28 @@ func RegisterMarketplace(knownMarketplacesPath, forksRoot string) error {
 		InstallLocation string   `json:"installLocation"`
 		LastUpdated     string   `json:"lastUpdated"`
 	}
-	entry := mpEntry{
-		Source:          mpSource{Source: "directory", Path: forksRoot},
-		InstallLocation: forksRoot,
-		LastUpdated:     time.Now().UTC().Format(time.RFC3339Nano),
-	}
-
-	entryRaw, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	doc[MarketplaceName] = json.RawMessage(entryRaw)
-
-	out, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return err
-	}
-	out = append(out, '\n')
-
-	if err := os.MkdirAll(filepath.Dir(knownMarketplacesPath), 0o755); err != nil {
-		return err
-	}
-	return atomicWrite(knownMarketplacesPath, out)
+	return fsutil.EditJSON(knownMarketplacesPath, []byte("{}"), func(doc map[string]json.RawMessage) error {
+		if _, exists := doc[MarketplaceName]; exists {
+			return nil
+		}
+		entry := mpEntry{
+			Source:          mpSource{Source: "directory", Path: forksRoot},
+			InstallLocation: forksRoot,
+			LastUpdated:     time.Now().UTC().Format(time.RFC3339Nano),
+		}
+		entryRaw, err := json.Marshal(entry)
+		if err != nil {
+			return err
+		}
+		doc[MarketplaceName] = json.RawMessage(entryRaw)
+		return nil
+	})
 }
 
 // RegisterInstalled adds a user-scope installed entry for p under
 // ForkFullName(p.Name) to installedPluginsPath, pointing at bundlePath.
 // If the fork is already listed, it is replaced (idempotent).
 func RegisterInstalled(installedPluginsPath string, p plugins.Plugin, bundlePath string, now time.Time) error {
-	raw, err := os.ReadFile(installedPluginsPath)
-	if os.IsNotExist(err) {
-		raw = []byte(`{"version":2,"plugins":{}}`)
-	} else if err != nil {
-		return fmt.Errorf("read installed_plugins: %w", err)
-	}
-
-	// Parse into a generic map to preserve all existing fields verbatim.
-	var doc map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		return fmt.Errorf("parse installed_plugins: %w", err)
-	}
-
-	// Read existing plugins map.
-	pluginsMap := map[string]json.RawMessage{}
-	if existing, ok := doc["plugins"]; ok {
-		if err := json.Unmarshal(existing, &pluginsMap); err != nil {
-			return fmt.Errorf("parse plugins map: %w", err)
-		}
-	}
-
-	version := p.Version
-	if version == "" {
-		version = "unknown"
-	}
-	ts := now.Format(time.RFC3339Nano)
-
 	type installedEntry struct {
 		Scope       string `json:"scope"`
 		InstallPath string `json:"installPath"`
@@ -196,38 +148,41 @@ func RegisterInstalled(installedPluginsPath string, p plugins.Plugin, bundlePath
 		InstalledAt string `json:"installedAt"`
 		LastUpdated string `json:"lastUpdated"`
 	}
-	entry := []installedEntry{{
-		Scope:       "user",
-		InstallPath: bundlePath,
-		Version:     version,
-		InstalledAt: ts,
-		LastUpdated: ts,
-	}}
-	entryRaw, err := json.Marshal(entry)
-	if err != nil {
-		return err
+	version := p.Version
+	if version == "" {
+		version = "unknown"
 	}
-	pluginsMap[ForkFullName(p.Name)] = json.RawMessage(entryRaw)
+	ts := now.Format(time.RFC3339Nano)
 
-	pluginsRaw, err := json.Marshal(pluginsMap)
-	if err != nil {
-		return err
-	}
-	doc["plugins"] = json.RawMessage(pluginsRaw)
-	if _, ok := doc["version"]; !ok {
-		doc["version"] = json.RawMessage(`2`)
-	}
-
-	out, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return err
-	}
-	out = append(out, '\n')
-
-	if err := os.MkdirAll(filepath.Dir(installedPluginsPath), 0o755); err != nil {
-		return err
-	}
-	return atomicWrite(installedPluginsPath, out)
+	return fsutil.EditJSON(installedPluginsPath, []byte(`{"version":2,"plugins":{}}`), func(doc map[string]json.RawMessage) error {
+		pluginsMap := map[string]json.RawMessage{}
+		if existing, ok := doc["plugins"]; ok {
+			if err := json.Unmarshal(existing, &pluginsMap); err != nil {
+				return fmt.Errorf("parse plugins map: %w", err)
+			}
+		}
+		entry := []installedEntry{{
+			Scope:       "user",
+			InstallPath: bundlePath,
+			Version:     version,
+			InstalledAt: ts,
+			LastUpdated: ts,
+		}}
+		entryRaw, err := json.Marshal(entry)
+		if err != nil {
+			return err
+		}
+		pluginsMap[ForkFullName(p.Name)] = json.RawMessage(entryRaw)
+		pluginsRaw, err := json.Marshal(pluginsMap)
+		if err != nil {
+			return err
+		}
+		doc["plugins"] = json.RawMessage(pluginsRaw)
+		if _, ok := doc["version"]; !ok {
+			doc["version"] = json.RawMessage(`2`)
+		}
+		return nil
+	})
 }
 
 // — manifest helpers —
@@ -258,24 +213,5 @@ func saveManifest(path string, m manifest) error {
 		return err
 	}
 	raw = append(raw, '\n')
-	return atomicWrite(path, raw)
-}
-
-// atomicWrite writes data to path via a sibling temp file + rename.
-func atomicWrite(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".mp-*.json.tmp")
-	if err != nil {
-		return fmt.Errorf("create temp: %w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return fmt.Errorf("write temp: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close temp: %w", err)
-	}
-	return os.Rename(tmpName, path)
+	return fsutil.AtomicWrite(path, raw)
 }
