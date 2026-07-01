@@ -11,7 +11,11 @@ Two binaries:
 
 ## Install
 
-No release binaries yet. Build from source:
+```sh
+brew install jorgenosberg/tap/agentcfg
+```
+
+Or install directly with Go:
 
 ```sh
 go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest

@@ -1,0 +1,83 @@
+version: 2
+
+project_name: agentcfg
+
+builds:
+  - id: agentcfg
+    main: ./cmd/agentcfg
+    binary: agentcfg
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jorgenosberg/agentcfg/internal/version.Version={{.Version}}
+      - -X github.com/jorgenosberg/agentcfg/internal/version.Commit={{.Commit}}
+      - -X github.com/jorgenosberg/agentcfg/internal/version.Date={{.Date}}
+
+  - id: lazyagentcfg
+    main: ./cmd/lazyagentcfg
+    binary: lazyagentcfg
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jorgenosberg/agentcfg/internal/version.Version={{.Version}}
+      - -X github.com/jorgenosberg/agentcfg/internal/version.Commit={{.Commit}}
+      - -X github.com/jorgenosberg/agentcfg/internal/version.Date={{.Date}}
+
+archives:
+  - id: combined
+    ids:
+      - agentcfg
+      - lazyagentcfg
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true
+
+release:
+  # release-please creates the release first; GoReleaser only uploads assets
+  mode: append
+
+brews:
+  - name: agentcfg
+    ids:
+      - combined
+    repository:
+      owner: jorgenosberg
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/jorgenosberg/agentcfg
+    description: >-
+      Sync skills, hooks, and instruction files across local AI coding agent
+      configurations from one source tree.
+    license: MIT
+    commit_author:
+      name: Jørgen Andresen Osberg
+      email: jorgen.osberg@gmail.com
+    install: |
+      bin.install "agentcfg"
+      bin.install "lazyagentcfg"
+    test: |
+      system "#{bin}/agentcfg", "--version"
