@@ -12,10 +12,9 @@ import (
 // dimBackground strips ANSI codes from s and re-renders every line in gray,
 // producing a visible but clearly inactive background for overlay compositing.
 func dimBackground(s string) string {
-	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
-		lines[i] = gray.Render(ansi.Strip(line))
+		lines[i] = "\x1b[38;5;240m" + ansi.Strip(line) + "\x1b[0m"
 	}
 	return strings.Join(lines, "\n")
 }
@@ -390,4 +389,3 @@ func (o *confirmOverlay) View(w int) string {
 		dimStyle.Render("[ n / esc ]") + " cancel"
 	return renderOverlayBox(w, content, o.title, 52)
 }
-
