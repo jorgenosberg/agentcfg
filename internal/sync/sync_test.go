@@ -545,6 +545,38 @@ func TestInspect_Copied_Dir(t *testing.T) {
 	}
 }
 
+func TestInspect_Drifted_DirNestedContent(t *testing.T) {
+	src := t.TempDir()
+	tgtDir := t.TempDir()
+
+	skillPath := filepath.Join(src, "my-skill")
+	if err := os.MkdirAll(filepath.Join(skillPath, "nested"), 0o755); err != nil {
+		t.Fatalf("mkdir skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillPath, "nested", "main.md"), []byte("# skill"), 0o644); err != nil {
+		t.Fatalf("write skill file: %v", err)
+	}
+	item := source.Item{Kind: source.KindSkill, Name: "my-skill", Path: skillPath}
+	tgt := config.Target{Name: "t", Path: tgtDir}
+
+	if _, err := sync.Install(tgt, config.StrategyCopy, item); err != nil {
+		t.Fatalf("install copy (dir): %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tgtDir, "skills", "my-skill", "nested", "main.md"), []byte("# changed"), 0o644); err != nil {
+		t.Fatalf("modify nested copy: %v", err)
+	}
+
+	cfg := config.Config{
+		Source:          src,
+		DefaultStrategy: config.StrategyCopy,
+		Targets:         []config.Target{tgt},
+	}
+	entries := sync.Inspect(cfg, []source.Item{item})
+	if entries[0].Status != sync.StatusDrifted {
+		t.Errorf("nested drift: want StatusDrifted, got %q", entries[0].Status)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Uninstall
 // ---------------------------------------------------------------------------

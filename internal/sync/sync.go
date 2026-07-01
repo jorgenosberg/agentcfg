@@ -16,14 +16,14 @@ import (
 type Status string
 
 const (
-	StatusLinked        Status = "linked"        // installed as symlink pointing at source
-	StatusCopied        Status = "copied"        // installed as a copy (snapshot)
-	StatusDrifted       Status = "drifted"       // copy exists but source has changed
-	StatusUnmanaged     Status = "unmanaged"     // present but not managed by agentcfg
-	StatusAbsent        Status = "absent"        // not installed
-	StatusNotApplicable Status = "n/a"           // target does not support this item kind
-	StatusDisabled      Status = "disabled"      // user has disabled this item for this target
-	StatusPluginOwned   Status = "plugin-owned"  // from an enabled plugin, not in agentcfg source
+	StatusLinked        Status = "linked"         // installed as symlink pointing at source
+	StatusCopied        Status = "copied"         // installed as a copy (snapshot)
+	StatusDrifted       Status = "drifted"        // copy exists but source has changed
+	StatusUnmanaged     Status = "unmanaged"      // present but not managed by agentcfg
+	StatusAbsent        Status = "absent"         // not installed
+	StatusNotApplicable Status = "n/a"            // target does not support this item kind
+	StatusDisabled      Status = "disabled"       // user has disabled this item for this target
+	StatusPluginOwned   Status = "plugin-owned"   // from an enabled plugin, not in agentcfg source
 	StatusPluginSibling Status = "plugin-sibling" // from a disabled plugin, not yet forked
 )
 
@@ -291,8 +291,7 @@ func statusOf(dest, src, strategy string) Status {
 	return StatusUnmanaged
 }
 
-// sameContent is a coarse check: matching size and (for files) byte equality.
-// Directories are compared by entry-name set only (shallow, not recursive).
+// sameContent compares files byte-for-byte and directories recursively.
 func sameContent(a, b string) bool {
 	fa, errA := os.Stat(a)
 	fb, errB := os.Stat(b)
@@ -303,28 +302,59 @@ func sameContent(a, b string) bool {
 		return false
 	}
 	if !fa.IsDir() {
-		if fa.Size() != fb.Size() {
-			return false
-		}
-		ba, errA := os.ReadFile(a)
-		bb, errB := os.ReadFile(b)
-		if errA != nil || errB != nil {
-			return false
-		}
-		return string(ba) == string(bb)
+		return sameFile(a, b, fa.Size(), fb.Size())
 	}
-	// directory: shallow check on entry names
-	ea, errA := os.ReadDir(a)
-	eb, errB := os.ReadDir(b)
-	if errA != nil || errB != nil || len(ea) != len(eb) {
+	ta, errA := tree(a)
+	tb, errB := tree(b)
+	if errA != nil || errB != nil || len(ta) != len(tb) {
 		return false
 	}
-	for i := range ea {
-		if ea[i].Name() != eb[i].Name() {
+	for rel, ia := range ta {
+		ib, ok := tb[rel]
+		if !ok || ia.isDir != ib.isDir {
+			return false
+		}
+		if !ia.isDir && !sameFile(filepath.Join(a, rel), filepath.Join(b, rel), ia.size, ib.size) {
 			return false
 		}
 	}
 	return true
+}
+
+type treeInfo struct {
+	isDir bool
+	size  int64
+}
+
+func tree(root string) (map[string]treeInfo, error) {
+	out := make(map[string]treeInfo)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if path == root {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		out[rel] = treeInfo{isDir: info.IsDir(), size: info.Size()}
+		return nil
+	})
+	return out, err
+}
+
+func sameFile(a, b string, sizeA, sizeB int64) bool {
+	if sizeA != sizeB {
+		return false
+	}
+	ba, errA := os.ReadFile(a)
+	bb, errB := os.ReadFile(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return string(ba) == string(bb)
 }
 
 // SyncResult holds the outcome for one (target, item) pair after a Sync run.
