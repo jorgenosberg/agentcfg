@@ -76,13 +76,18 @@ func newInstallCmd(load func() (config.Config, error)) *cobra.Command {
 			if force {
 				install = sync.Adopt
 			}
+			var failed int
 			for _, t := range targets {
 				st, err := install(t, t.ResolveStrategy(cfg.DefaultStrategy), item)
 				if err != nil {
 					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\terror: %v\n", t.Name, item.Name, err)
+					failed++
 					continue
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", t.Name, item.Name, st)
+			}
+			if failed > 0 {
+				return fmt.Errorf("%d target(s) failed", failed)
 			}
 			return nil
 		},
@@ -111,12 +116,17 @@ func newUninstallCmd(load func() (config.Config, error)) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("item %q not found in %s", args[0], cfg.Source)
 			}
+			var failed int
 			for _, t := range selectTargets(cfg.Targets, targetName) {
 				if err := sync.Uninstall(t, t.ResolveStrategy(cfg.DefaultStrategy), item); err != nil {
 					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\terror: %v\n", t.Name, item.Name, err)
+					failed++
 					continue
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\tremoved\n", t.Name, item.Name)
+			}
+			if failed > 0 {
+				return fmt.Errorf("%d target(s) failed", failed)
 			}
 			return nil
 		},
@@ -188,14 +198,22 @@ func newToggleCmd(load func() (config.Config, error), pathOf func() (string, err
 				verb = "enabled"
 			}
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			var failed int
 			for _, t := range targets {
 				if err := sync.Toggle(cfgPath, t.Name, item, disable); err != nil {
 					fmt.Fprintf(tw, "%s\t%s\terror: %v\n", t.Name, item.Name, err)
+					failed++
 					continue
 				}
 				fmt.Fprintf(tw, "%s\t%s\t%s\n", t.Name, item.Name, verb)
 			}
-			return tw.Flush()
+			if err := tw.Flush(); err != nil {
+				return err
+			}
+			if failed > 0 {
+				return fmt.Errorf("%d target(s) failed", failed)
+			}
+			return nil
 		},
 	}
 	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")
@@ -235,18 +253,27 @@ func newUnmanageCmd(load func() (config.Config, error), pathOf func() (string, e
 				return fmt.Errorf("no matching targets")
 			}
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			var failed int
 			for _, t := range targets {
 				if err := sync.Unmanage(t, t.ResolveStrategy(cfg.DefaultStrategy), item); err != nil {
 					fmt.Fprintf(tw, "%s\t%s\terror: %v\n", t.Name, item.Name, err)
+					failed++
 					continue
 				}
 				if err := sync.Toggle(cfgPath, t.Name, item, true); err != nil {
 					fmt.Fprintf(tw, "%s\t%s\tunmanaged (disable failed: %v)\n", t.Name, item.Name, err)
+					failed++
 					continue
 				}
 				fmt.Fprintf(tw, "%s\t%s\tunmanaged\n", t.Name, item.Name)
 			}
-			return tw.Flush()
+			if err := tw.Flush(); err != nil {
+				return err
+			}
+			if failed > 0 {
+				return fmt.Errorf("%d target(s) failed", failed)
+			}
+			return nil
 		},
 	}
 	c.Flags().StringVarP(&targetName, "target", "t", "", "target name (default: all)")

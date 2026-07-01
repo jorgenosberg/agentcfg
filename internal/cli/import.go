@@ -57,10 +57,12 @@ func newImportCmd(load func() (config.Config, error)) *cobra.Command {
 				}
 			}
 
+			var failed int
 			for _, it := range selected {
 				skipped, err := sync.ImportItem(cfg.Source, it, force)
 				if err != nil {
 					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\terror: %v\n", it.Kind, it.Name, err)
+					failed++
 					continue
 				}
 				if skipped {
@@ -68,6 +70,9 @@ func newImportCmd(load func() (config.Config, error)) *cobra.Command {
 					continue
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\timported\n", it.Kind, it.Name)
+			}
+			if failed > 0 {
+				return fmt.Errorf("%d item(s) failed", failed)
 			}
 			return nil
 		},

@@ -104,6 +104,12 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 			if err := tw.Flush(); err != nil {
 				return err
 			}
+			var failed int
+			for _, r := range results {
+				if r.Err != nil {
+					failed++
+				}
+			}
 
 			if !dryRun && len(results) > 0 {
 				if err := lock.Save(lockPath, lck); err != nil {
@@ -112,6 +118,9 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 			}
 			if len(results) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "everything up to date")
+			}
+			if failed > 0 {
+				return fmt.Errorf("%d item(s) failed", failed)
 			}
 			return nil
 		},

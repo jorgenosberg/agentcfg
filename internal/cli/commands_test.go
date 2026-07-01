@@ -42,6 +42,55 @@ func TestList_Empty(t *testing.T) {
 	}
 }
 
+func TestInstall_ReturnsErrorWhenAnyTargetFails(t *testing.T) {
+	home := sandbox(t)
+	srcDir := defaultSource(home)
+
+	cfg := defaultConfig(home)
+	cfg.Targets[0].Name = "ok"
+	bad := cfg.Targets[0]
+	bad.Name = "bad"
+	bad.Path = filepath.Join(home, ".bad-claude")
+	cfg.Targets = append(cfg.Targets, bad)
+	seedConfig(t, home, cfg)
+	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
+
+	mkfile(t, filepath.Join(bad.Path, "CLAUDE.md"), "# unmanaged")
+
+	out, err := runCLI(t, "install", "CLAUDE.md")
+	if err == nil {
+		t.Fatalf("expected install to return an error when one target fails; output: %s", out)
+	}
+	if !strings.Contains(out, "ok") || !strings.Contains(out, "bad") || !strings.Contains(out, "error:") {
+		t.Errorf("expected mixed success/error output, got: %s", out)
+	}
+}
+
+func TestSync_ReturnsErrorWhenAnyInstallFails(t *testing.T) {
+	home := sandbox(t)
+	srcDir := defaultSource(home)
+	readOnly := filepath.Join(home, "readonly")
+	if err := os.MkdirAll(readOnly, 0o555); err != nil {
+		t.Fatalf("mkdir readonly: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(readOnly, 0o755)
+	})
+
+	cfg := defaultConfig(home)
+	cfg.Targets[0].Path = filepath.Join(readOnly, "target")
+	seedConfig(t, home, cfg)
+	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
+
+	out, err := runCLI(t, "sync", "--no-backup")
+	if err == nil {
+		t.Fatalf("expected sync to return an error when install fails; output: %s", out)
+	}
+	if !strings.Contains(out, "error:") {
+		t.Errorf("expected sync error output, got: %s", out)
+	}
+}
+
 // --- toggle ---
 
 func TestToggle_InfersDisable(t *testing.T) {
