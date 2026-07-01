@@ -292,7 +292,7 @@ func statusOf(dest, src, strategy string) Status {
 }
 
 // sameContent is a coarse check: matching size and (for files) byte equality.
-// Directories are compared by recursive walk equality on first divergence.
+// Directories are compared by entry-name set only (shallow, not recursive).
 func sameContent(a, b string) bool {
 	fa, errA := os.Stat(a)
 	fb, errB := os.Stat(b)

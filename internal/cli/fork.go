@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/jorgenosberg/agentcfg/internal/claudecfg"
-	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/fork"
 	"github.com/jorgenosberg/agentcfg/internal/forks"
 	"github.com/jorgenosberg/agentcfg/internal/marketplace"
@@ -23,7 +22,7 @@ import (
 //	agentcfg fork <plugin@marketplace>   # fork a plugin
 //	agentcfg fork list                   # list recorded forks
 //	agentcfg fork status                 # check drift vs upstream
-func newForkCmd(_ func() (config.Config, error)) *cobra.Command { //nolint:unparam
+func newForkCmd() *cobra.Command {
 	var dryRun bool
 
 	c := &cobra.Command{

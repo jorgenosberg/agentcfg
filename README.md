@@ -9,17 +9,16 @@ Two binaries:
 - `agentcfg` — scriptable CLI.
 - `lazyagentcfg` — interactive TUI (lazygit-style).
 
-## Status
-
-Personal-use tool, actively developed. No formal release yet (no Homebrew tap, no semver tags). Build from source with `make build`.
-
 ## Install
 
+No release binaries yet. Build from source:
+
 ```sh
-brew install jorgenosberg/tap/agentcfg
+go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest
+go install github.com/jorgenosberg/agentcfg/cmd/lazyagentcfg@latest
 ```
 
-Tap not yet published.
+Or clone and run `make build`.
 
 ## Quick start
 
