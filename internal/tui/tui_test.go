@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -134,6 +135,78 @@ func TestPaletteWidgetSelected(t *testing.T) {
 	if a := empty.selected(); a != nil {
 		t.Fatalf("expected nil for empty widget, got %v", a)
 	}
+}
+
+func TestSyncAllNoTargetsReportsActionableMessage(t *testing.T) {
+	t.Setenv("AGENTCFG_HOME", t.TempDir())
+	m := model{
+		cfg: config.Config{
+			Source:          t.TempDir(),
+			DefaultStrategy: config.StrategyLink,
+		},
+	}
+
+	msg := runGlobalAction(t, m, "Sync all")
+	reload, ok := msg.(cfgReloadMsg)
+	if !ok {
+		t.Fatalf("Sync all returned %T", msg)
+	}
+	if reload.err != nil {
+		t.Fatalf("Sync all returned error: %v", reload.err)
+	}
+	if !strings.Contains(reload.status, "no targets configured") {
+		t.Fatalf("expected no-targets status, got %q", reload.status)
+	}
+	if strings.Contains(reload.status, "everything up to date") {
+		t.Fatalf("no-targets sync should not say everything is up to date: %q", reload.status)
+	}
+}
+
+func TestSyncAllReportsFailedItems(t *testing.T) {
+	t.Setenv("AGENTCFG_HOME", t.TempDir())
+	src := t.TempDir()
+	itemPath := src + "/AGENTS.md"
+	if err := os.WriteFile(itemPath, []byte("# agents"), 0o644); err != nil {
+		t.Fatalf("write source item: %v", err)
+	}
+	m := model{
+		cfg: config.Config{
+			Source:          src,
+			DefaultStrategy: "invalid",
+			Targets: []config.Target{
+				{Name: "broken", Path: t.TempDir()},
+			},
+		},
+		items: []source.Item{{Kind: source.KindContext, Name: "AGENTS.md", Path: itemPath}},
+	}
+
+	msg := runGlobalAction(t, m, "Sync all")
+	reload, ok := msg.(cfgReloadMsg)
+	if !ok {
+		t.Fatalf("Sync all returned %T", msg)
+	}
+	if reload.err == nil {
+		t.Fatalf("expected failed item error, got status %q", reload.status)
+	}
+	if !strings.Contains(reload.err.Error(), "1 item(s) failed") {
+		t.Fatalf("expected failed item count, got %v", reload.err)
+	}
+}
+
+func runGlobalAction(t *testing.T, m model, label string) tea.Msg {
+	t.Helper()
+	for _, action := range m.buildGlobalActions() {
+		if action.label != label {
+			continue
+		}
+		_, cmd := action.fn()
+		if cmd == nil {
+			t.Fatalf("%s returned nil command", label)
+		}
+		return cmd()
+	}
+	t.Fatalf("global action %q not found", label)
+	return nil
 }
 
 func TestDimBackgroundStripsColors(t *testing.T) {
@@ -276,4 +349,3 @@ func TestBuildRightPanelTitleTruncation(t *testing.T) {
 		t.Errorf("expected truncated prefix 'very-l' in title, got: %q", topBorder)
 	}
 }
-

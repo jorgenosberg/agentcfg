@@ -424,19 +424,29 @@ func (m model) buildGlobalActions() []paletteAction {
 				if err != nil {
 					return cfgReloadMsg{err: err}
 				}
+				if len(cfg.Targets) == 0 {
+					return cfgReloadMsg{status: "no targets configured; run `agentcfg discover` to find agent dirs, then `agentcfg discover --add <name>`"}
+				}
 				results := sync.Sync(cfg, items, lck, false, false)
-				var installed, updated int
+				var installed, updated, failed int
 				for _, r := range results {
-					if r.Err == nil {
-						if r.OldStatus == sync.StatusAbsent {
-							installed++
-						} else {
-							updated++
-						}
+					if r.Err != nil {
+						failed++
+						continue
+					}
+					if r.OldStatus == sync.StatusAbsent {
+						installed++
+					} else {
+						updated++
 					}
 				}
+				if failed > 0 {
+					return cfgReloadMsg{err: fmt.Errorf("%d item(s) failed", failed)}
+				}
 				if len(results) > 0 {
-					_ = lock.Save(lockPath, lck)
+					if err := lock.Save(lockPath, lck); err != nil {
+						return cfgReloadMsg{err: fmt.Errorf("save lock: %w", err)}
+					}
 				}
 				status := "everything up to date"
 				if len(results) > 0 {

@@ -91,6 +91,24 @@ func TestSync_ReturnsErrorWhenAnyInstallFails(t *testing.T) {
 	}
 }
 
+func TestSync_NoTargetsReportsActionableMessage(t *testing.T) {
+	home := sandbox(t)
+	cfg := defaultConfig(home)
+	cfg.Targets = nil
+	seedConfig(t, home, cfg)
+
+	out, err := runCLI(t, "sync", "--dry-run")
+	if err != nil {
+		t.Fatalf("sync --dry-run with no targets: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "no targets configured") {
+		t.Errorf("expected no-targets message, got: %s", out)
+	}
+	if strings.Contains(out, "everything up to date") {
+		t.Errorf("no-targets sync should not say everything is up to date: %s", out)
+	}
+}
+
 // --- toggle ---
 
 func TestToggle_InfersDisable(t *testing.T) {

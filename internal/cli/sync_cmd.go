@@ -37,6 +37,10 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 				}
 				cfg.Targets = targets
 			}
+			if len(cfg.Targets) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "no targets configured; run `agentcfg discover` to find agent dirs, then `agentcfg discover --add <name>`")
+				return nil
+			}
 			items, err := source.Scan(cfg.Source)
 			if err != nil {
 				return err
