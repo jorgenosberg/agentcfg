@@ -38,11 +38,19 @@ builds:
       - -X github.com/jorgenosberg/agentcfg/internal/version.Date={{.Date}}
 
 archives:
-  - id: combined
+  - id: agentcfg-archive
     ids:
       - agentcfg
+    name_template: "agentcfg_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    files:
+      - README.md
+      - LICENSE
+
+  - id: lazyagentcfg-archive
+    ids:
       - lazyagentcfg
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "lazyagentcfg_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     files:
       - README.md
@@ -61,7 +69,7 @@ release:
 brews:
   - name: agentcfg
     ids:
-      - combined
+      - agentcfg-archive
     repository:
       owner: jorgenosberg
       name: homebrew-tap
@@ -69,15 +77,32 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/jorgenosberg/agentcfg
-    description: >-
-      Sync skills, hooks, and instruction files across local AI coding agent
-      configurations from one source tree.
+    description: Scriptable CLI to sync skills, hooks, and instruction files across local AI coding agent configurations.
     license: MIT
     commit_author:
       name: Jørgen Andresen Osberg
       email: jorgen.osberg@gmail.com
     install: |
       bin.install "agentcfg"
-      bin.install "lazyagentcfg"
     test: |
       system "#{bin}/agentcfg", "--version"
+
+  - name: lazyagentcfg
+    ids:
+      - lazyagentcfg-archive
+    repository:
+      owner: jorgenosberg
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/jorgenosberg/agentcfg
+    description: Interactive TUI for managing AI coding agent configurations (lazygit-style).
+    license: MIT
+    commit_author:
+      name: Jørgen Andresen Osberg
+      email: jorgen.osberg@gmail.com
+    install: |
+      bin.install "lazyagentcfg"
+    test: |
+      system "#{bin}/lazyagentcfg", "--version"

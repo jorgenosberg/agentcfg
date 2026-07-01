@@ -11,11 +11,14 @@ Two binaries:
 
 ## Install
 
+Install the CLI, the TUI, or both:
+
 ```sh
-brew install jorgenosberg/tap/agentcfg
+brew install jorgenosberg/tap/agentcfg       # CLI
+brew install jorgenosberg/tap/lazyagentcfg   # TUI
 ```
 
-Or install directly with Go:
+Or with Go:
 
 ```sh
 go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest

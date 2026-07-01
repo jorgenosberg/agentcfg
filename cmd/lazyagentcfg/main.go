@@ -6,9 +6,15 @@ import (
 
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/tui"
+	"github.com/jorgenosberg/agentcfg/internal/version"
 )
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Println("lazyagentcfg", version.String())
+		return
+	}
+
 	path, err := config.DefaultPath()
 	if err != nil {
 		die(err)
