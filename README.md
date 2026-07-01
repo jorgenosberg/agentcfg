@@ -2,11 +2,13 @@
 
 Sync skills, hooks, and instruction files (CLAUDE.md, AGENTS.md, etc.)
 across local AI coding agent configurations from one user-defined source
-tree.
+tree. Based on the idea that most AI agent configs are just plain files, at least for now, so they can be managed with symlinks, copies etc. 
+
+Created because I have personally had multiple Claude accounts enabled on the same machine, a Codex account, an OpenCode installation etc., all at the same time, and wanted an easier way to copy and export my setup between agents.
 
 Two binaries:
 
-- `agentcfg` — scriptable CLI.
+- `agentcfg` — CLI.
 - `lazyagentcfg` — interactive TUI (lazygit-style).
 
 ## Install
@@ -25,7 +27,8 @@ go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest
 go install github.com/jorgenosberg/agentcfg/cmd/lazyagentcfg@latest
 ```
 
-Or clone and run `make build`.
+Go installs and source builds require Go `1.24` or newer. Or clone and run
+`make build`.
 
 ## Quick start
 
@@ -47,7 +50,7 @@ agentcfg install obsidian-cli -t claude
 ## Discovery and import
 
 agentcfg ships a built-in catalog of known AI agent install directories:
-`~/.claude`, `~/.codex`, `~/.copilot`, `~/.gemini`, `~/.config/opencode`,
+`~/.claude`, `~/.codex`, `~/.copilot`, `~/.gemini` (which is also for new Antigravity CLI), `~/.config/opencode`,
 `~/.agents`. Discovery is opt-in:
 
 - `init` does not scan anywhere outside the source directory.
@@ -92,7 +95,7 @@ make build
 
 ## Testing in a sandbox
 
-Set `AGENTCFG_HOME` to any directory and agentcfg will read and write only under that path — its own state (`~/.agentcfg/*`), the agent catalog (`~/.claude`, `~/.codex`, etc.), and Claude plugin reads/writes are all redirected. Your real configs are never touched.
+Set `AGENTCFG_HOME` to any directory and agentcfg will read and write only under that path. This means its own state (`~/.agentcfg/*`), the agent catalog (`~/.claude`, `~/.codex`, etc.), and Claude plugin reads/writes are all redirected, so your real local AI agent configs are not touched.
 
 ```sh
 make sandbox              # build + launch TUI with AGENTCFG_HOME=./.sandbox
