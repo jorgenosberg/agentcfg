@@ -68,13 +68,13 @@ tidy:
 	go mod tidy
 	go mod verify
 
-## gen-docs: regenerate CLI reference Markdown into site/ from the Cobra command tree
+## gen-docs: regenerate CLI reference Markdown into docs/ from the Cobra command tree
 gen-docs:
 	go run ./cmd/gendocs
 
 ## check-docs: fail if the committed CLI reference is stale vs the Cobra tree
 check-docs: gen-docs
-	@git diff --exit-code -- site/src/content/docs/reference/cli || \
+	@git diff --exit-code -- docs/src/content/docs/reference/cli || \
 		{ echo "CLI reference is stale — run 'make gen-docs' and commit the result"; exit 1; }
 
 ## clean: remove build artefacts

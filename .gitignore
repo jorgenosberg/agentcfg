@@ -8,7 +8,7 @@
 coverage.txt
 .sandbox/
 
-# Astro site (site/)
-site/node_modules/
-site/dist/
-site/.astro/
+# Astro site (docs/)
+docs/node_modules/
+docs/dist/
+docs/.astro/

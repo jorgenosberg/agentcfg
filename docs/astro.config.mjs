@@ -17,7 +17,7 @@ export default defineConfig({
         { icon: 'github', label: 'GitHub', href: 'https://github.com/jorgenosberg/agentcfg' },
       ],
       editLink: {
-        baseUrl: 'https://github.com/jorgenosberg/agentcfg/edit/main/site/',
+        baseUrl: 'https://github.com/jorgenosberg/agentcfg/edit/main/docs/',
       },
       sidebar: [
         {

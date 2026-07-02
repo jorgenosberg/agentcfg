@@ -15,7 +15,7 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/cli"
 )
 
-const outDir = "site/src/content/docs/reference/cli"
+const outDir = "docs/src/content/docs/reference/cli"
 
 func main() {
 	root := cli.NewRoot()
