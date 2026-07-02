@@ -114,7 +114,11 @@ func (m model) buildSourceItemActions() []paletteAction {
 							return cfgReloadMsg{err: err}
 						}
 					}
-					return cfgReloadMsg{status: fmt.Sprintf("toggled %s", item.Name)}
+					verb := "enabled"
+					if disable {
+						verb = "disabled"
+					}
+					return cfgReloadMsg{status: fmt.Sprintf("%s %s", verb, item.Name)}
 				}
 			},
 		})
@@ -478,7 +482,7 @@ func (m model) buildGlobalActions() []paletteAction {
 					return cfgReloadMsg{err: err}
 				}
 				_ = backup.Prune(root, 5)
-				return cfgReloadMsg{status: fmt.Sprintf("backup: %s", filepath.Base(dir))}
+				return cfgReloadMsg{status: fmt.Sprintf("created backup %s", filepath.Base(dir))}
 			}
 		},
 	})
