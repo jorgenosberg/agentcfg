@@ -19,3 +19,4 @@ jobs:
           cache: true
 
       - run: make check
+      - run: make check-docs

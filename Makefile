@@ -18,7 +18,7 @@ SANDBOX ?= $(CURDIR)/.sandbox
 
 .PHONY: all build agentcfg lazyagentcfg install uninstall \
         check test vet lint fmt tidy clean run-tui watch \
-        sandbox sandbox-cli sandbox-reset
+        sandbox sandbox-cli sandbox-reset gen-docs check-docs
 
 all: build
 
@@ -67,6 +67,15 @@ fmt:
 tidy:
 	go mod tidy
 	go mod verify
+
+## gen-docs: regenerate CLI reference Markdown into site/ from the Cobra command tree
+gen-docs:
+	go run ./cmd/gendocs
+
+## check-docs: fail if the committed CLI reference is stale vs the Cobra tree
+check-docs: gen-docs
+	@git diff --exit-code -- site/src/content/docs/reference/cli || \
+		{ echo "CLI reference is stale — run 'make gen-docs' and commit the result"; exit 1; }
 
 ## clean: remove build artefacts
 clean:
