@@ -86,7 +86,7 @@ func newDiscoverCmd(load func() (config.Config, error), pathOf func() (string, e
 					return nil
 				}
 				if len(addNames) == 0 {
-					return fmt.Errorf("--add-all requires individual target names when using --path; use --add <name>")
+					return fmt.Errorf("--add-all is not supported with --path; use --add <name>")
 				}
 				targetName := addNames[0]
 				for _, t := range cfg.Targets {
