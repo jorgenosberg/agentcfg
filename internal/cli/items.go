@@ -68,9 +68,9 @@ func newInstallCmd(load func() (config.Config, error)) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("item %q not found in %s", args[0], cfg.Source)
 			}
-			targets := selectTargets(cfg.Targets, targetName)
-			if len(targets) == 0 {
-				return fmt.Errorf("no matching targets")
+			targets, err := resolveTargets(cfg, targetName)
+			if err != nil {
+				return err
 			}
 			install := sync.Install
 			if force {
@@ -116,8 +116,12 @@ func newUninstallCmd(load func() (config.Config, error)) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("item %q not found in %s", args[0], cfg.Source)
 			}
+			targets, err := resolveTargets(cfg, targetName)
+			if err != nil {
+				return err
+			}
 			var failed int
-			for _, t := range selectTargets(cfg.Targets, targetName) {
+			for _, t := range targets {
 				if err := sync.Uninstall(t, t.ResolveStrategy(cfg.DefaultStrategy), item); err != nil {
 					fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\terror: %v\n", t.Name, item.Name, err)
 					failed++
@@ -162,9 +166,9 @@ func newToggleCmd(load func() (config.Config, error), pathOf func() (string, err
 			if !ok {
 				return fmt.Errorf("item %q not found in %s", args[0], cfg.Source)
 			}
-			targets := selectTargets(cfg.Targets, targetName)
-			if len(targets) == 0 {
-				return fmt.Errorf("no matching targets")
+			targets, err := resolveTargets(cfg, targetName)
+			if err != nil {
+				return err
 			}
 
 			disable := forceOff
@@ -248,9 +252,9 @@ func newUnmanageCmd(load func() (config.Config, error), pathOf func() (string, e
 			if !ok {
 				return fmt.Errorf("item %q not found in %s", args[0], cfg.Source)
 			}
-			targets := selectTargets(cfg.Targets, targetName)
-			if len(targets) == 0 {
-				return fmt.Errorf("no matching targets")
+			targets, err := resolveTargets(cfg, targetName)
+			if err != nil {
+				return err
 			}
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			var failed int

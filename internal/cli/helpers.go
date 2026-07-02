@@ -54,3 +54,17 @@ func selectTargets(all []config.Target, name string) []config.Target {
 	}
 	return out
 }
+
+// resolveTargets selects targets by name (or all, if name is empty) and
+// returns a descriptive error when nothing matches, instead of leaving
+// callers to guess or silently do nothing.
+func resolveTargets(cfg config.Config, name string) ([]config.Target, error) {
+	targets := selectTargets(cfg.Targets, name)
+	if len(targets) > 0 {
+		return targets, nil
+	}
+	if name != "" {
+		return nil, fmt.Errorf("no target named %q", name)
+	}
+	return nil, fmt.Errorf("no targets configured; run `agentcfg discover` to find agent dirs, then `agentcfg discover --add <name>`")
+}
