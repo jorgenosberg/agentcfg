@@ -117,3 +117,7 @@ To exercise discover/sync with fake agent dirs, create them inside the sandbox h
 mkdir -p .sandbox/.claude/skills .sandbox/.codex
 make sandbox-cli ARGS="discover"
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
