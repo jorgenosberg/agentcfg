@@ -2,8 +2,8 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "package-name": "agentcfg",
-      "release-as": "0.1.0"
+      "package-name": "agentcfg"
     }
-  }
+  },
+  "include-component-in-tag": false
 }
