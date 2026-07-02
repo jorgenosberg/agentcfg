@@ -303,6 +303,21 @@ func newBackupCmd(load func() (config.Config, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if len(cfg.Targets) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "no targets configured; nothing to back up")
+				return nil
+			}
+			anyExists := false
+			for _, t := range cfg.Targets {
+				if _, serr := os.Stat(t.Path); serr == nil {
+					anyExists = true
+					break
+				}
+			}
+			if !anyExists {
+				fmt.Fprintln(cmd.OutOrStdout(), "no existing target directories to back up")
+				return nil
+			}
 			root, err := backup.DefaultRoot()
 			if err != nil {
 				return err
