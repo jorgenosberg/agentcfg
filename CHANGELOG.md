@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/jorgenosberg/agentcfg/compare/v0.1.0...v0.1.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **release:** use plain semver tags and drop one-time version pin ([f2c9e25](https://github.com/jorgenosberg/agentcfg/commit/f2c9e25e82c05c8af70f4a43f1f474d7dc60be17))
+
 ## 0.1.0 (2026-07-02)
 
 
