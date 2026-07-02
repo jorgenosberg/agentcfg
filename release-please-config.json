@@ -1,8 +1,7 @@
 {
   "packages": {
     ".": {
-      "release-type": "go",
-      "package-name": "agentcfg"
+      "release-type": "go"
     }
   },
   "include-component-in-tag": false
