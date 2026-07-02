@@ -24,6 +24,10 @@ func newTargetCmd(load func() (config.Config, error), pathOf func() (string, err
 				if err != nil {
 					return err
 				}
+				if len(cfg.Targets) == 0 {
+					fmt.Fprintln(cmd.OutOrStdout(), "no targets configured; run `agentcfg discover` then `agentcfg discover --add <name>`")
+					return nil
+				}
 				tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 				fmt.Fprintln(tw, "NAME\tAGENT\tALIAS\tPATH\tSTRATEGY")
 				for _, t := range cfg.Targets {

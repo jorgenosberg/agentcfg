@@ -37,8 +37,8 @@ func TestList_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list (empty): %v\noutput: %s", err, out)
 	}
-	if !strings.Contains(out, "KIND") {
-		t.Errorf("expected header in output: %s", out)
+	if !strings.Contains(out, "no items in source") {
+		t.Errorf("expected empty-state message in output: %s", out)
 	}
 }
 

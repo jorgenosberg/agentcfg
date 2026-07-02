@@ -24,7 +24,7 @@ func newListCmd(load func() (config.Config, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeItems(cmd.OutOrStdout(), items)
+			return writeItems(cmd.OutOrStdout(), items, cfg.Source)
 		},
 	}
 }

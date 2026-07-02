@@ -10,7 +10,11 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 )
 
-func writeItems(w io.Writer, items []source.Item) error {
+func writeItems(w io.Writer, items []source.Item, sourcePath string) error {
+	if len(items) == 0 {
+		fmt.Fprintf(w, "no items in source (%s); add files there or run `agentcfg import <agent> --all`\n", sourcePath)
+		return nil
+	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "KIND\tNAME\tPATH")
 	for _, it := range items {
@@ -20,6 +24,10 @@ func writeItems(w io.Writer, items []source.Item) error {
 }
 
 func writeStatus(w io.Writer, entries []sync.Entry) error {
+	if len(entries) == 0 {
+		fmt.Fprintln(w, "nothing to show; add targets with `agentcfg discover --add <name>` and items under your source")
+		return nil
+	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "TARGET\tKIND\tITEM\tSTATUS\tDEST")
 	for _, e := range entries {
