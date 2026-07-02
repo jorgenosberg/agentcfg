@@ -1,0 +1,87 @@
+---
+const base = import.meta.env.BASE_URL;
+
+const features = [
+  {
+    title: 'Discovery & import',
+    body:
+      'Ships a built-in catalog of known agent install dirs. Discovery is opt-in — nothing ' +
+      'outside your source tree is touched unless you ask.',
+    href: `${base}guides/discovery-and-import/`,
+  },
+  {
+    title: 'Link or copy',
+    body:
+      'Symlink for a single source of truth with instant propagation, or copy for agents ' +
+      "that can't resolve symlinks. Configurable globally or per target.",
+    href: `${base}guides/link-vs-copy/`,
+  },
+  {
+    title: 'One source tree',
+    body:
+      'Skills, hooks, and shared instruction files (CLAUDE.md, AGENTS.md) live in one ' +
+      'user-defined directory, installed out to every agent that needs them.',
+    href: `${base}guides/source-layout/`,
+  },
+  {
+    title: 'Sandboxed by default',
+    body:
+      'Point AGENTCFG_HOME anywhere to try commands against a throwaway home directory — ' +
+      'your real agent configs are never touched during testing.',
+    href: `${base}guides/sandbox-testing/`,
+  },
+];
+---
+
+<section class="features">
+  <div class="grid">
+    {
+      features.map((f) => (
+        <a class="card" href={f.href}>
+          <h3>{f.title}</h3>
+          <p>{f.body}</p>
+        </a>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .features {
+    max-width: 60rem;
+    margin: 0 auto 3rem;
+    padding: 0 1.5rem;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+  }
+
+  .card {
+    display: block;
+    background: var(--landing-bg-raised);
+    border: 1px solid var(--landing-border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    text-decoration: none;
+    color: var(--landing-fg);
+  }
+
+  .card:hover {
+    border-color: var(--landing-accent);
+  }
+
+  .card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  .card p {
+    margin: 0;
+    color: var(--landing-fg-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+</style>

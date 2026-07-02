@@ -1,0 +1,79 @@
+---
+const commands = [
+  {
+    label: 'Homebrew',
+    code: 'brew install jorgenosberg/tap/agentcfg       # CLI\nbrew install jorgenosberg/tap/lazyagentcfg   # TUI',
+  },
+  {
+    label: 'go install',
+    code:
+      'go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest\n' +
+      'go install github.com/jorgenosberg/agentcfg/cmd/lazyagentcfg@latest',
+  },
+  {
+    label: 'From source',
+    code: 'git clone https://github.com/jorgenosberg/agentcfg\ncd agentcfg && make build',
+  },
+];
+---
+
+<section class="install">
+  <h2>Install</h2>
+  <p class="note">Go installs and source builds require Go 1.24 or newer.</p>
+  <div class="tabs">
+    {
+      commands.map((c) => (
+        <div class="tab">
+          <p class="tab-label">{c.label}</p>
+          <pre><code>{c.code}</code></pre>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .install {
+    max-width: 46rem;
+    margin: 0 auto 3rem;
+    padding: 0 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .note {
+    color: var(--landing-fg-muted);
+    font-size: 0.9rem;
+    margin-top: 0;
+  }
+
+  .tabs {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .tab {
+    background: var(--landing-bg-raised);
+    border: 1px solid var(--landing-border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+  }
+
+  .tab-label {
+    font-size: 0.85rem;
+    color: var(--landing-fg-muted);
+    margin: 0 0 0.5rem;
+  }
+
+  pre {
+    margin: 0;
+    overflow-x: auto;
+    font-family: var(--landing-font-mono);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+</style>

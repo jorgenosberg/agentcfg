@@ -1,0 +1,61 @@
+---
+const base = import.meta.env.BASE_URL;
+
+// Third-party brand marks — check each vendor's brand guidelines before
+// using this strip in a marketing/promotional context beyond nominative use.
+const agents = [
+  { name: 'Claude Code', logo: 'claude.png' },
+  { name: 'Codex', logo: 'codex.png' },
+  { name: 'Copilot', logo: 'copilot.png' },
+  { name: 'Gemini', logo: 'gemini.png' },
+  { name: 'OpenCode', logo: 'opencode.png' },
+];
+---
+
+<section class="works-with">
+  <p class="label">Works with</p>
+  <div class="logos">
+    {
+      agents.map((a) => (
+        <span class="logo">
+          <img src={`${base}logos/${a.logo}`} alt={a.name} width="20" height="20" />
+          {a.name}
+        </span>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .works-with {
+    max-width: 46rem;
+    margin: 0 auto 3rem;
+    padding: 0 1.5rem;
+    text-align: center;
+  }
+
+  .label {
+    font-size: 0.85rem;
+    color: var(--landing-fg-muted);
+    margin-bottom: 1rem;
+  }
+
+  .logos {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--landing-fg-muted);
+    font-size: 0.9rem;
+  }
+
+  .logo img {
+    border-radius: 4px;
+  }
+</style>

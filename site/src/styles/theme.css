@@ -1,0 +1,27 @@
+/*
+ * Shared tokens for the custom landing page (src/pages/index.astro and
+ * src/components/*). Starlight's own docs pages style themselves
+ * independently — these variables aren't referenced there.
+ */
+:root {
+  --landing-bg: #0b0c0e;
+  --landing-bg-raised: #14161a;
+  --landing-fg: #e8e9ec;
+  --landing-fg-muted: #9a9ea6;
+  --landing-border: #23262b;
+  --landing-accent: #10a37f;
+  --landing-font-mono: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+
+  /*
+   * Brand palette for the agents agentcfg manages. Mirrors the hex values
+   * in internal/icons/icons.go (brandBadges) — if you change one, change
+   * the other; there's no automated sync for six rarely-changing colors.
+   */
+  --agent-claude: #da7756; /* Anthropic terracotta */
+  --agent-codex: #10a37f; /* OpenAI teal */
+  --agent-copilot: #8534f3; /* GitHub Copilot purple */
+  --agent-gemini: #4796e3; /* Gemini blue */
+  --agent-opencode-bg: #e5e7eb; /* OpenCode light gray bg */
+  --agent-opencode-fg: #111111; /* OpenCode dark text */
+  --agent-agents: #64748b; /* neutral slate, generic "agents" dir */
+}
