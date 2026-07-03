@@ -1,7 +1,11 @@
 {
   "packages": {
     ".": {
-      "release-type": "go"
+      "release-type": "go",
+      "exclude-paths": [
+        "docs",
+        ".github"
+      ]
     }
   },
   "include-component-in-tag": false
