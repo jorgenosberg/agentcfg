@@ -3,31 +3,31 @@ const base = import.meta.env.BASE_URL;
 
 const features = [
   {
-    title: 'Discovery & import',
+    title: 'One source tree',
     body:
-      'Ships a built-in catalog of known agent install dirs. Discovery is opt-in, so nothing ' +
-      'outside your source tree is touched unless you ask.',
-    href: `${base}guides/discovery-and-import/`,
+      'Skills, hooks, and instruction files like CLAUDE.md and AGENTS.md live in one ' +
+      'directory you choose, and get installed into each agent from there.',
+    href: `${base}guides/source-layout/`,
   },
   {
     title: 'Link or copy',
     body:
-      'Symlink for a single source of truth with instant propagation, or copy for agents ' +
-      "that can't resolve symlinks. Configurable globally or per target.",
+      "Symlink so edits show up everywhere immediately, or copy for agents that can't " +
+      'follow symlinks. Set the strategy globally or per target.',
     href: `${base}guides/link-vs-copy/`,
   },
   {
-    title: 'One source tree',
+    title: 'Discovery & import',
     body:
-      'Skills, hooks, and shared instruction files (CLAUDE.md, AGENTS.md) live in one ' +
-      'user-defined directory, installed out to every agent that needs them.',
-    href: `${base}guides/source-layout/`,
+      'agentcfg knows the usual install directories (~/.claude, ~/.codex, and so on) and ' +
+      'can import what it finds there into your source tree. Nothing is scanned unless you ask.',
+    href: `${base}guides/discovery-and-import/`,
   },
   {
-    title: 'Sandboxed by default',
+    title: 'Sandbox mode',
     body:
-      'Point AGENTCFG_HOME anywhere to try commands against a throwaway home directory. ' +
-      'Your real agent configs are never touched during testing.',
+      'Set AGENTCFG_HOME to a throwaway directory and every command reads and writes ' +
+      'only there. Try things out without touching your real agent configs.',
     href: `${base}guides/sandbox-testing/`,
   },
 ];
