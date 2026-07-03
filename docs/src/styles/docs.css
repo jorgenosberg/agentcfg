@@ -1,0 +1,57 @@
+/*
+ * Starlight overrides so the docs match the landing page: same monochrome
+ * accent, same raised-surface colors (values mirror src/styles/theme.css),
+ * and a flat sidebar. Code block colors are configured in astro.config.mjs
+ * (expressiveCode) and reference the --agentcfg-* vars defined here.
+ */
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #24272f;
+  --sl-color-accent: #c0c2c7;
+  --sl-color-accent-high: #eceef2;
+  --sl-color-text-accent: #eceef2;
+  --agentcfg-code-bg: #1e2026;
+  --agentcfg-border: #2c2f37;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #eceef2;
+  --sl-color-accent: #353841;
+  --sl-color-accent-high: #17181c;
+  --sl-color-text-accent: #17181c;
+  --agentcfg-code-bg: #f5f6f8;
+  --agentcfg-border: #e3e5ea;
+}
+
+/* Flat sidebar: same background as the content, separated by its border. */
+:root {
+  --sl-color-bg-sidebar: var(--sl-color-bg);
+}
+
+/* Match the landing page wordmark. */
+.site-title {
+  font-family: 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--sl-color-white);
+}
+
+/* Hide the fake terminal titlebar (three dots) on untitled code blocks so
+   they read as plain rounded boxes, like the landing page install blocks. */
+.expressive-code .frame.is-terminal:not(:has(.title:not(:empty))) .header {
+  display: none;
+}
+.expressive-code .frame.is-terminal:not(:has(.title:not(:empty))) pre {
+  border-radius: 8px;
+}
+
+/* Flat prev/next pagination cards, like the landing page feature cards. */
+.pagination-links a {
+  box-shadow: none;
+}
+
+/* With a monochrome accent, content links need the underline to stand out. */
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}

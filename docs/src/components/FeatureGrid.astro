@@ -5,7 +5,7 @@ const features = [
   {
     title: 'Discovery & import',
     body:
-      'Ships a built-in catalog of known agent install dirs. Discovery is opt-in — nothing ' +
+      'Ships a built-in catalog of known agent install dirs. Discovery is opt-in, so nothing ' +
       'outside your source tree is touched unless you ask.',
     href: `${base}guides/discovery-and-import/`,
   },
@@ -26,8 +26,8 @@ const features = [
   {
     title: 'Sandboxed by default',
     body:
-      'Point AGENTCFG_HOME anywhere to try commands against a throwaway home directory — ' +
-      'your real agent configs are never touched during testing.',
+      'Point AGENTCFG_HOME anywhere to try commands against a throwaway home directory. ' +
+      'Your real agent configs are never touched during testing.',
     href: `${base}guides/sandbox-testing/`,
   },
 ];
@@ -48,40 +48,46 @@ const features = [
 
 <style>
   .features {
-    max-width: 60rem;
-    margin: 0 auto 3rem;
+    max-width: 46rem;
+    margin: 0 auto;
     padding: 0 1.5rem;
   }
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  @media (max-width: 40rem) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   .card {
     display: block;
-    background: var(--landing-bg-raised);
     border: 1px solid var(--landing-border);
     border-radius: 8px;
-    padding: 1.25rem;
+    padding: 1.15rem 1.25rem;
     text-decoration: none;
-    color: var(--landing-fg);
   }
 
   .card:hover {
-    border-color: var(--landing-accent);
+    background: var(--landing-bg-raised);
   }
 
   .card h3 {
-    margin: 0 0 0.5rem;
-    font-size: 1.05rem;
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--landing-fg);
   }
 
   .card p {
     margin: 0;
     color: var(--landing-fg-muted);
     font-size: 0.9rem;
-    line-height: 1.5;
+    line-height: 1.55;
   }
 </style>

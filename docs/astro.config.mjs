@@ -16,6 +16,27 @@ export default defineConfig({
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/jorgenosberg/agentcfg' },
       ],
+      customCss: ['./src/styles/docs.css'],
+      // Muted syntax themes + surfaces matching the landing page's install
+      // blocks (--agentcfg-* vars are defined in src/styles/docs.css).
+      expressiveCode: {
+        themes: ['min-dark', 'min-light'],
+        styleOverrides: {
+          borderRadius: '8px',
+          borderColor: 'var(--agentcfg-border)',
+          codeBackground: 'var(--agentcfg-code-bg)',
+          frames: {
+            frameBoxShadowCssValue: 'none',
+            terminalBackground: 'var(--agentcfg-code-bg)',
+            terminalTitlebarBackground: 'var(--agentcfg-code-bg)',
+            terminalTitlebarBorderBottomColor: 'var(--agentcfg-border)',
+            terminalTitlebarDotsForeground: 'var(--sl-color-gray-4)',
+            editorBackground: 'var(--agentcfg-code-bg)',
+            editorActiveTabBackground: 'var(--agentcfg-code-bg)',
+            editorTabBarBackground: 'var(--agentcfg-code-bg)',
+          },
+        },
+      },
       editLink: {
         baseUrl: 'https://github.com/jorgenosberg/agentcfg/edit/main/docs/',
       },
