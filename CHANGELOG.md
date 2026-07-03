@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/jorgenosberg/agentcfg/compare/v0.1.1...v0.2.0) (2026-07-03)
+
+
+### Features
+
+* **cli:** auto-generate CLI reference docs from the Cobra command tree ([d8a9083](https://github.com/jorgenosberg/agentcfg/commit/d8a9083d7817db222eae29ceea1869659312b9ac))
+* **site:** add Astro + Starlight landing page and docs site, deploy to GitHub Pages ([1591024](https://github.com/jorgenosberg/agentcfg/commit/1591024c25827e79e26dd259612bb351c5d6d7eb))
+* **site:** replace PNG agent logos with SVGs and add Antigravity ([b56cdba](https://github.com/jorgenosberg/agentcfg/commit/b56cdba853fc4df734036b6c9262cb7465345e89))
+
+
+### Bug Fixes
+
+* **ci:** pin pnpm version so the Pages build can resolve it ([ecd3ae9](https://github.com/jorgenosberg/agentcfg/commit/ecd3ae9ce36dc3dd563bca50d30a033c1f35bd4f))
+* **cli:** drop duplicated command title from generated CLI reference pages ([a142583](https://github.com/jorgenosberg/agentcfg/commit/a142583e0d407185b5f46a883a6f51dec9ba8d95))
+* **site:** correct sandbox claim and tighten landing page copy ([e3a7e6b](https://github.com/jorgenosberg/agentcfg/commit/e3a7e6b8a11bb2d9b8e213e432c18f81f0f0ba0e))
+
 ## [0.1.1](https://github.com/jorgenosberg/agentcfg/compare/v0.1.0...v0.1.1) (2026-07-02)
 
 
