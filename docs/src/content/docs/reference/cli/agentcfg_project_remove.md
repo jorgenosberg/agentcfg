@@ -4,27 +4,25 @@ description: agentcfg CLI reference for `agentcfg project remove`
 editUrl: false
 ---
 
-## agentcfg project remove
-
 Remove a project folder
 
 ```
 agentcfg project remove <name> [flags]
 ```
 
-### Options
+## Options
 
 ```
   -h, --help   help for remove
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg project](../agentcfg_project/)	 - Manage project folders to scan for in-repo agent configuration
 

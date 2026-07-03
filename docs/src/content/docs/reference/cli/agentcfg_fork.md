@@ -4,11 +4,9 @@ description: agentcfg CLI reference for `agentcfg fork`
 editUrl: false
 ---
 
-## agentcfg fork
-
 Fork a Claude plugin into the agentcfg-owned marketplace
 
-### Synopsis
+## Synopsis
 
 fork copies a Claude Code plugin's entire bundle into the agentcfg fork marketplace (~/.agentcfg/forks/), registers it with Claude Code, disables the upstream plugin, and enables the fork. You own the copy and can edit any file in it directly.
 
@@ -18,20 +16,20 @@ Use the `list` and `status` subcommands to inspect recorded forks.
 agentcfg fork <plugin@marketplace> [flags]
 ```
 
-### Options
+## Options
 
 ```
       --dry-run   print what would be forked without making changes
   -h, --help      help for fork
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 * [agentcfg fork list](../agentcfg_fork_list/)	 - List recorded plugin forks

@@ -4,11 +4,9 @@ description: agentcfg CLI reference for `agentcfg discover`
 editUrl: false
 ---
 
-## agentcfg discover
-
 List known AI agent install dirs and items found in them
 
-### Synopsis
+## Synopsis
 
 Walk the built-in catalog of known agent install paths under $HOME and list items found in each. Read-only by default. Use --add <name> (repeatable) or --add-all to register discovered agents as targets in the config. Use --paths to print which paths the catalog checks without scanning.
 
@@ -18,7 +16,7 @@ Use --path <dir> to scan a custom directory instead of the catalog. Supply --as 
 agentcfg discover [flags]
 ```
 
-### Options
+## Options
 
 ```
       --add strings   register named discovered agent as target (repeatable)
@@ -29,13 +27,13 @@ agentcfg discover [flags]
       --paths         print catalog paths without scanning, then exit
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 

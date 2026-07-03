@@ -4,27 +4,25 @@ description: agentcfg CLI reference for `agentcfg project`
 editUrl: false
 ---
 
-## agentcfg project
-
 Manage project folders to scan for in-repo agent configuration
 
-### Synopsis
+## Synopsis
 
 Project folders are repository or workspace directories that agentcfg scans for agent-specific files such as CLAUDE.md, .github/copilot-instructions.md, .claude/skills/, .cursorrules, and similar artefacts. Scanning is read-only; use `import` to pull items into the global source tree.
 
-### Options
+## Options
 
 ```
   -h, --help   help for project
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 * [agentcfg project add](../agentcfg_project_add/)	 - Add a project folder

@@ -4,27 +4,25 @@ description: agentcfg CLI reference for `agentcfg version delete`
 editUrl: false
 ---
 
-## agentcfg version delete
-
 Delete a saved version
 
 ```
 agentcfg version delete <item> <name> [flags]
 ```
 
-### Options
+## Options
 
 ```
   -h, --help   help for delete
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg version](../agentcfg_version/)	 - Manage saved versions of source items
 

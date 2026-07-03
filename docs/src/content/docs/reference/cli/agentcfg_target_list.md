@@ -4,27 +4,25 @@ description: agentcfg CLI reference for `agentcfg target list`
 editUrl: false
 ---
 
-## agentcfg target list
-
 List configured targets
 
 ```
 agentcfg target list [flags]
 ```
 
-### Options
+## Options
 
 ```
   -h, --help   help for list
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg target](../agentcfg_target/)	 - Manage sync targets
 

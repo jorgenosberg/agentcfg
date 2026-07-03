@@ -4,15 +4,13 @@ description: agentcfg CLI reference for `agentcfg backup restore`
 editUrl: false
 ---
 
-## agentcfg backup restore
-
 Restore a snapshot back to original target paths
 
 ```
 agentcfg backup restore [flags]
 ```
 
-### Options
+## Options
 
 ```
   -h, --help        help for restore
@@ -20,13 +18,13 @@ agentcfg backup restore [flags]
       --latest      restore from the most recent snapshot without prompting
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg backup](../agentcfg_backup/)	 - Manage snapshots of target directories
 

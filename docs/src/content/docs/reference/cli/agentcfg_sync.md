@@ -4,15 +4,13 @@ description: agentcfg CLI reference for `agentcfg sync`
 editUrl: false
 ---
 
-## agentcfg sync
-
 Install all absent and drifted items across all targets
 
 ```
 agentcfg sync [flags]
 ```
 
-### Options
+## Options
 
 ```
       --dry-run         show what would be installed without making changes
@@ -22,13 +20,13 @@ agentcfg sync [flags]
   -t, --target string   target name (default: all)
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 

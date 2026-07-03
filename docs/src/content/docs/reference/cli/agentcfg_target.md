@@ -4,23 +4,21 @@ description: agentcfg CLI reference for `agentcfg target`
 editUrl: false
 ---
 
-## agentcfg target
-
 Manage sync targets
 
-### Options
+## Options
 
 ```
   -h, --help   help for target
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 * [agentcfg target add](../agentcfg_target_add/)	 - Add a sync target

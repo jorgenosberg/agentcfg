@@ -4,27 +4,25 @@ description: agentcfg CLI reference for `agentcfg backup`
 editUrl: false
 ---
 
-## agentcfg backup
-
 Manage snapshots of target directories
 
 ```
 agentcfg backup [flags]
 ```
 
-### Options
+## Options
 
 ```
   -h, --help   help for backup
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 * [agentcfg backup create](../agentcfg_backup_create/)	 - Snapshot all target directories now

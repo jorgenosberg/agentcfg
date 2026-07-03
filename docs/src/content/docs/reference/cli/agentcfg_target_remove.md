@@ -4,27 +4,25 @@ description: agentcfg CLI reference for `agentcfg target remove`
 editUrl: false
 ---
 
-## agentcfg target remove
-
 Remove a target
 
 ```
 agentcfg target remove <name> [flags]
 ```
 
-### Options
+## Options
 
 ```
   -h, --help   help for remove
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg target](../agentcfg_target/)	 - Manage sync targets
 

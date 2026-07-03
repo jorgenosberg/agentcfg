@@ -4,24 +4,22 @@ description: agentcfg CLI reference for `agentcfg`
 editUrl: false
 ---
 
-## agentcfg
-
 Sync skills, hooks, and context files across AI agent configs
 
-### Synopsis
+## Synopsis
 
 agentcfg keeps a single source-of-truth directory in sync with one or more AI coding agent directories (Claude Code, Codex, Copilot, opencode, ...). Source path is user-configurable; default is ~/.agentcfg/source.
 
 Set AGENTCFG_HOME to any directory to run in an isolated sandbox — all reads and writes (state, catalog, Claude plugin files) go there instead of the real $HOME.
 
-### Options
+## Options
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
   -h, --help            help for agentcfg
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg backup](../agentcfg_backup/)	 - Manage snapshots of target directories
 * [agentcfg discover](../agentcfg_discover/)	 - List known AI agent install dirs and items found in them

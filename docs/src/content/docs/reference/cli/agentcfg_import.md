@@ -4,11 +4,9 @@ description: agentcfg CLI reference for `agentcfg import`
 editUrl: false
 ---
 
-## agentcfg import
-
 Copy items from a target's directory into the source tree
 
-### Synopsis
+## Synopsis
 
 Reads the given target's directory and copies named items into the source tree. Use --all to import everything found. Existing source items are skipped unless --force is set.
 
@@ -16,7 +14,7 @@ Reads the given target's directory and copies named items into the source tree. 
 agentcfg import <target> [item...] [flags]
 ```
 
-### Options
+## Options
 
 ```
       --all     import every item found in the target
@@ -24,13 +22,13 @@ agentcfg import <target> [item...] [flags]
   -h, --help    help for import
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 

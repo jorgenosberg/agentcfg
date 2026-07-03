@@ -4,23 +4,21 @@ description: agentcfg CLI reference for `agentcfg version`
 editUrl: false
 ---
 
-## agentcfg version
-
 Manage saved versions of source items
 
-### Options
+## Options
 
 ```
   -h, --help   help for version
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 * [agentcfg version delete](../agentcfg_version_delete/)	 - Delete a saved version

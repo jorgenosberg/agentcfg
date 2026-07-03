@@ -49,5 +49,53 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gendocs:", err)
 		os.Exit(1)
 	}
+
+	// Cobra opens every file with an "## <command>" heading that duplicates
+	// the frontmatter title Starlight already renders as the page H1.
+	if err := normalizeHeadings(outDir); err != nil {
+		fmt.Fprintln(os.Stderr, "gendocs:", err)
+		os.Exit(1)
+	}
 	fmt.Println("wrote CLI reference to", outDir)
+}
+
+// normalizeHeadings removes the first "## " heading (and a blank line
+// following it) from every generated Markdown file, then promotes the
+// remaining "### " sections to "## " so each page keeps an h1 → h2
+// hierarchy under the frontmatter title.
+func normalizeHeadings(dir string) error {
+	files, err := filepath.Glob(filepath.Join(dir, "*.md"))
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			return err
+		}
+		lines := strings.Split(string(b), "\n")
+		for i, line := range lines {
+			if strings.HasPrefix(line, "## ") {
+				rest := lines[i+1:]
+				if len(rest) > 0 && rest[0] == "" {
+					rest = rest[1:]
+				}
+				lines = append(lines[:i], rest...)
+				break
+			}
+		}
+		inFence := false
+		for i, line := range lines {
+			if strings.HasPrefix(line, "```") {
+				inFence = !inFence
+			}
+			if !inFence && strings.HasPrefix(line, "### ") {
+				lines[i] = line[1:]
+			}
+		}
+		if err := os.WriteFile(f, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }

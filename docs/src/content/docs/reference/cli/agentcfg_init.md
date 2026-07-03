@@ -4,11 +4,9 @@ description: agentcfg CLI reference for `agentcfg init`
 editUrl: false
 ---
 
-## agentcfg init
-
 Write a default config file
 
-### Synopsis
+## Synopsis
 
 Write a starter config at the configured path (default ~/.agentcfg/config.json) and create the source tree skeleton.
 
@@ -18,7 +16,7 @@ When stdin is a terminal the command launches an interactive wizard that discove
 agentcfg init [flags]
 ```
 
-### Options
+## Options
 
 ```
   -h, --help             help for init
@@ -26,13 +24,13 @@ agentcfg init [flags]
       --source string    path to source tree (default ~/.agentcfg/source)
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg](../agentcfg/)	 - Sync skills, hooks, and context files across AI agent configs
 

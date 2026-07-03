@@ -4,15 +4,13 @@ description: agentcfg CLI reference for `agentcfg target add`
 editUrl: false
 ---
 
-## agentcfg target add
-
 Add a sync target
 
 ```
 agentcfg target add <name> <path> [flags]
 ```
 
-### Options
+## Options
 
 ```
       --agent string      agent type profile: claude, codex, copilot, gemini, cursor, cline, windsurf, aider, agents, opencode
@@ -21,13 +19,13 @@ agentcfg target add <name> <path> [flags]
       --strategy string   link or copy (default: config default)
 ```
 
-### Options inherited from parent commands
+## Options inherited from parent commands
 
 ```
       --config string   path to config file (default ~/.agentcfg/config.json)
 ```
 
-### SEE ALSO
+## SEE ALSO
 
 * [agentcfg target](../agentcfg_target/)	 - Manage sync targets
 
