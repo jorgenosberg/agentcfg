@@ -1,14 +1,22 @@
 ---
-const base = import.meta.env.BASE_URL;
+// Third-party brand marks (lobe-icons set) — check each vendor's brand
+// guidelines before using this strip in a marketing/promotional context
+// beyond nominative use. Imported as components so currentColor icons
+// (Copilot, OpenCode) inherit the page text color in both themes.
+import ClaudeCode from '../assets/logos/claude-code.svg';
+import Codex from '../assets/logos/codex.svg';
+import Copilot from '../assets/logos/copilot.svg';
+import Gemini from '../assets/logos/gemini.svg';
+import Antigravity from '../assets/logos/antigravity.svg';
+import OpenCode from '../assets/logos/opencode.svg';
 
-// Third-party brand marks — check each vendor's brand guidelines before
-// using this strip in a marketing/promotional context beyond nominative use.
 const agents = [
-  { name: 'Claude Code', logo: 'claude.png' },
-  { name: 'Codex', logo: 'codex.png' },
-  { name: 'Copilot', logo: 'copilot.png' },
-  { name: 'Gemini', logo: 'gemini.png' },
-  { name: 'OpenCode', logo: 'opencode.png' },
+  { name: 'Claude Code', Icon: ClaudeCode },
+  { name: 'Codex', Icon: Codex },
+  { name: 'Copilot', Icon: Copilot },
+  { name: 'Gemini CLI', Icon: Gemini },
+  { name: 'Antigravity', Icon: Antigravity },
+  { name: 'OpenCode', Icon: OpenCode },
 ];
 ---
 
@@ -16,10 +24,10 @@ const agents = [
   <p class="label">Works with</p>
   <div class="logos">
     {
-      agents.map((a) => (
+      agents.map(({ name, Icon }) => (
         <span class="logo">
-          <img src={`${base}logos/${a.logo}`} alt={a.name} width="20" height="20" />
-          {a.name}
+          <Icon aria-hidden="true" />
+          {name}
         </span>
       ))
     }
@@ -29,13 +37,13 @@ const agents = [
 <style>
   .works-with {
     max-width: 46rem;
-    margin: 0 auto 3rem;
+    margin: 0 auto 4rem;
     padding: 0 1.5rem;
     text-align: center;
   }
 
   .label {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--landing-fg-muted);
     margin-bottom: 1rem;
   }
@@ -44,7 +52,7 @@ const agents = [
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 1.5rem;
+    gap: 1rem 1.75rem;
   }
 
   .logo {
@@ -55,7 +63,9 @@ const agents = [
     font-size: 0.9rem;
   }
 
-  .logo img {
-    border-radius: 4px;
+  .logo :global(svg) {
+    width: 18px;
+    height: 18px;
+    color: var(--landing-fg);
   }
 </style>
