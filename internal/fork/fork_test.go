@@ -33,17 +33,17 @@ func makePlugin(t *testing.T, installDir string) plugins.Plugin {
 		`{"name":"testplugin","version":"1.0.0"}`)
 
 	return plugins.Plugin{
-		Name:        "testplugin",
-		Marketplace: "testmarket",
-		FullName:    "testplugin@testmarket",
-		Installed:   true,
-		Enabled:     true,
-		InstallPath: installDir,
-		Version:     "1.0.0",
+		Name:         "testplugin",
+		Marketplace:  "testmarket",
+		FullName:     "testplugin@testmarket",
+		Installed:    true,
+		Enabled:      true,
+		InstallPath:  installDir,
+		Version:      "1.0.0",
 		GitCommitSha: "deadbeef1234",
-		Skills:      []string{"my-skill"},
-		Hooks:       []string{"on-start.sh"},
-		MCPServers:  []string{"mcp-server"},
+		Skills:       []string{"my-skill"},
+		Hooks:        []string{"on-start.sh"},
+		MCPServers:   []string{"mcp-server"},
 	}
 }
 
@@ -59,11 +59,20 @@ func mkfile(t *testing.T, path, content string) {
 
 func buildRequest(t *testing.T, tmp string, p plugins.Plugin) fork.Request {
 	t.Helper()
+	return buildRequestFor(t, tmp, "claude", p)
+}
+
+// buildRequestFor is buildRequest but lets the caller pick a claude-dir name
+// (e.g. "claude" vs "claude-knowit"), so a single forks root/path can be
+// shared across a fork into multiple Claude Code directories.
+func buildRequestFor(t *testing.T, tmp, claudeDirName string, p plugins.Plugin) fork.Request {
+	t.Helper()
 	forksRoot := filepath.Join(tmp, "agentcfg-forks")
 	forksPath := filepath.Join(tmp, "forks.json")
-	settingsPath := filepath.Join(tmp, "settings.json")
-	knownMPPath := filepath.Join(tmp, "known_marketplaces.json")
-	installedPath := filepath.Join(tmp, "installed_plugins.json")
+	claudeDir := filepath.Join(tmp, claudeDirName)
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	knownMPPath := filepath.Join(claudeDir, "known_marketplaces.json")
+	installedPath := filepath.Join(claudeDir, "installed_plugins.json")
 
 	// Seed settings.json with upstream enabled.
 	mkfile(t, settingsPath, `{"enabledPlugins":{"testplugin@testmarket":true}}`)
@@ -75,6 +84,7 @@ func buildRequest(t *testing.T, tmp string, p plugins.Plugin) fork.Request {
 		SettingsPath:          settingsPath,
 		KnownMarketplacesPath: knownMPPath,
 		InstalledPluginsPath:  installedPath,
+		ClaudeDir:             claudeDir,
 	}
 }
 
@@ -244,5 +254,82 @@ func TestExecute_AlreadyForked_Errors(t *testing.T) {
 	// Second fork should fail because the bundle dir already exists.
 	if _, err := fork.Execute(req); err == nil {
 		t.Error("expected error when forking an already-forked plugin")
+	}
+}
+
+func TestExecute_SecondClaudeDir_ReusesBundleAndRegistersSeparately(t *testing.T) {
+	tmp := t.TempDir()
+	p := makePlugin(t, filepath.Join(tmp, "cache", "testplugin", "1.0.0"))
+
+	req1 := buildRequestFor(t, tmp, "claude", p)
+	if _, err := fork.Execute(req1); err != nil {
+		t.Fatalf("first Execute (claude): %v", err)
+	}
+
+	req2 := buildRequestFor(t, tmp, "claude-knowit", p)
+	res2, err := fork.Execute(req2)
+	if err != nil {
+		t.Fatalf("second Execute (claude-knowit): %v", err)
+	}
+
+	// Same bundle path reused, not duplicated.
+	bundleDest := marketplace.BundlePath(req1.ForksRoot, p.Name)
+	if res2.BundlePath != bundleDest {
+		t.Errorf("BundlePath: got %q want %q", res2.BundlePath, bundleDest)
+	}
+
+	// Second Claude dir must have its own settings/marketplace/installed files.
+	assertPluginEnabledInFile(t, req2.SettingsPath, "testplugin@testmarket", false)
+	assertPluginEnabledInFile(t, req2.SettingsPath, "testplugin@agentcfg-forks", true)
+	if _, err := os.Stat(req2.KnownMarketplacesPath); err != nil {
+		t.Errorf("known_marketplaces.json not created for second claude dir: %v", err)
+	}
+	if _, err := os.Stat(req2.InstalledPluginsPath); err != nil {
+		t.Errorf("installed_plugins.json not created for second claude dir: %v", err)
+	}
+
+	// forks.json should record both claude dirs against the single fork entry.
+	ff, err := forks.Load(req1.ForksPath)
+	if err != nil {
+		t.Fatalf("forks.Load: %v", err)
+	}
+	f, ok := ff.Forks["testplugin@testmarket"]
+	if !ok {
+		t.Fatal("forks.json has no entry for testplugin@testmarket")
+	}
+	if !f.HasClaudeDir(req1.ClaudeDir) || !f.HasClaudeDir(req2.ClaudeDir) {
+		t.Errorf("expected both claude dirs recorded, got %v", f.ClaudeDirs)
+	}
+}
+
+func TestExecute_SameClaudeDirTwice_Errors(t *testing.T) {
+	tmp := t.TempDir()
+	p := makePlugin(t, filepath.Join(tmp, "cache", "testplugin", "1.0.0"))
+	req := buildRequestFor(t, tmp, "claude", p)
+
+	if _, err := fork.Execute(req); err != nil {
+		t.Fatalf("first Execute: %v", err)
+	}
+	mkfile(t, req.SettingsPath, `{"enabledPlugins":{"testplugin@testmarket":true}}`)
+
+	if _, err := fork.Execute(req); err == nil {
+		t.Error("expected error when re-forking the same plugin into the same claude dir")
+	}
+}
+
+func assertPluginEnabledInFile(t *testing.T, settingsPath, pluginName string, want bool) {
+	t.Helper()
+	raw, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("read settings.json: %v", err)
+	}
+	var doc struct {
+		EnabledPlugins map[string]bool `json:"enabledPlugins"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse settings.json: %v", err)
+	}
+	if got := doc.EnabledPlugins[pluginName]; got != want {
+		t.Errorf("enabledPlugins[%q]: got %v want %v (settings: %s)", pluginName, got, want, raw)
 	}
 }

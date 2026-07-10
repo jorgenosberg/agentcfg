@@ -43,8 +43,14 @@ func assertPluginEnabled(t *testing.T, settingsPath, pluginName string, want boo
 //	<home>/.claude/plugins/cache/market/myplugin/1.0.0/bin/tool
 func buildForkFixture(t *testing.T, home string) string {
 	t.Helper()
+	return buildForkFixtureIn(t, filepath.Join(home, ".claude"))
+}
 
-	claudeDir := filepath.Join(home, ".claude")
+// buildForkFixtureIn is buildForkFixture for an arbitrary claude directory,
+// used to simulate a second Claude Code home (e.g. a different account).
+func buildForkFixtureIn(t *testing.T, claudeDir string) string {
+	t.Helper()
+
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	installDir := filepath.Join(pluginsDir, "cache", "market", "myplugin", "1.0.0")
 
@@ -255,4 +261,67 @@ func TestForkStatusCmd_UpToDate(t *testing.T) {
 	if !strings.Contains(out, "up-to-date") {
 		t.Errorf("expected up-to-date status: %s", out)
 	}
+}
+
+func TestForkCmd_MultipleClaudeDirs(t *testing.T) {
+	home := sandbox(t)
+	cfg := defaultConfig(home)
+	seedConfig(t, home, cfg)
+
+	claudeDir := filepath.Join(home, ".claude")
+	knowitDir := filepath.Join(home, ".claude-knowit")
+	buildForkFixtureIn(t, claudeDir)
+	buildForkFixtureIn(t, knowitDir)
+
+	out, err := runCLI(t, "fork", "myplugin@market", "--claude-dir", claudeDir, "--claude-dir", knowitDir)
+	if err != nil {
+		t.Fatalf("fork: %v\noutput: %s", err, out)
+	}
+	if strings.Count(out, "forked") != 2 {
+		t.Errorf("expected two 'forked' lines, one per claude dir: %s", out)
+	}
+
+	// Bundle copied once, shared by both dirs.
+	bundleDest := filepath.Join(home, ".agentcfg", "forks", "plugins", "myplugin")
+	if fi, err := os.Stat(bundleDest); err != nil || !fi.IsDir() {
+		t.Errorf("bundle dir not found at %s: %v", bundleDest, err)
+	}
+
+	// Both claude dirs must have the fork enabled and upstream disabled.
+	assertPluginEnabled(t, filepath.Join(claudeDir, "settings.json"), "myplugin@agentcfg-forks", true)
+	assertPluginEnabled(t, filepath.Join(claudeDir, "settings.json"), "myplugin@market", false)
+	assertPluginEnabled(t, filepath.Join(knowitDir, "settings.json"), "myplugin@agentcfg-forks", true)
+	assertPluginEnabled(t, filepath.Join(knowitDir, "settings.json"), "myplugin@market", false)
+
+	// fork list should show both claude dirs against the single entry.
+	out, err = runCLI(t, "fork", "list")
+	if err != nil {
+		t.Fatalf("fork list: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, claudeDir) || !strings.Contains(out, knowitDir) {
+		t.Errorf("expected both claude dirs in fork list: %s", out)
+	}
+}
+
+func TestForkCmd_ClaudeDirMissingPlugin_SkipsWithoutFailing(t *testing.T) {
+	home := sandbox(t)
+	cfg := defaultConfig(home)
+	seedConfig(t, home, cfg)
+
+	claudeDir := filepath.Join(home, ".claude")
+	knowitDir := filepath.Join(home, ".claude-knowit")
+	buildForkFixtureIn(t, claudeDir)
+	// knowitDir intentionally left empty: plugin not installed there.
+	if err := os.MkdirAll(knowitDir, 0o755); err != nil {
+		t.Fatalf("mkdir knowit dir: %v", err)
+	}
+
+	out, err := runCLI(t, "fork", "myplugin@market", "--claude-dir", claudeDir, "--claude-dir", knowitDir)
+	if err != nil {
+		t.Fatalf("fork: %v\noutput: %s", err, out)
+	}
+	if !strings.Contains(out, "skip") {
+		t.Errorf("expected a skip message for the dir missing the plugin: %s", out)
+	}
+	assertPluginEnabled(t, filepath.Join(claudeDir, "settings.json"), "myplugin@agentcfg-forks", true)
 }

@@ -47,6 +47,13 @@ func Load() (*Registry, error) {
 	if err != nil {
 		return &Registry{}, nil
 	}
+	return LoadFrom(dir)
+}
+
+// LoadFrom is Load for an arbitrary Claude Code plugins directory
+// (typically "<claude-dir>/plugins"), letting callers inspect a specific
+// Claude Code profile instead of the default ~/.claude one.
+func LoadFrom(dir string) (*Registry, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return &Registry{}, nil
 	}

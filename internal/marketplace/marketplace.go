@@ -34,7 +34,13 @@ func DefaultKnownMarketplacesPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".claude", "plugins", "known_marketplaces.json"), nil
+	return KnownMarketplacesPathIn(filepath.Join(home, ".claude")), nil
+}
+
+// KnownMarketplacesPathIn returns known_marketplaces.json inside an arbitrary
+// Claude Code directory.
+func KnownMarketplacesPathIn(claudeDir string) string {
+	return filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
 }
 
 // DefaultInstalledPluginsPath returns ~/.claude/plugins/installed_plugins.json.
@@ -43,7 +49,13 @@ func DefaultInstalledPluginsPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), nil
+	return InstalledPluginsPathIn(filepath.Join(home, ".claude")), nil
+}
+
+// InstalledPluginsPathIn returns installed_plugins.json inside an arbitrary
+// Claude Code directory.
+func InstalledPluginsPathIn(claudeDir string) string {
+	return filepath.Join(claudeDir, "plugins", "installed_plugins.json")
 }
 
 // ManifestPath returns the marketplace.json path inside forksRoot.
