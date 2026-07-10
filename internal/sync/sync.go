@@ -467,9 +467,20 @@ func copyDir(src, dst string) error {
 			return err
 		}
 		target := filepath.Join(dst, rel)
-		if fi.IsDir() {
+		switch {
+		case fi.Mode()&os.ModeSymlink != 0:
+			// Recreate nested symlinks as symlinks rather than dereferencing
+			// them: cheaper, preserves structure, and tolerates dangling
+			// links (a stale symlink must not abort the whole copy).
+			link, err := os.Readlink(p)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(link, target)
+		case fi.IsDir():
 			return os.MkdirAll(target, fi.Mode())
+		default:
+			return copyFile(p, target, fi.Mode())
 		}
-		return copyFile(p, target, fi.Mode())
 	})
 }
