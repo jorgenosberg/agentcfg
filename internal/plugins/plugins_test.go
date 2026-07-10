@@ -77,9 +77,9 @@ func TestLoad_MergesThreeFiles(t *testing.T) {
 			"plugins": map[string]any{
 				"alpha@official": map[string]any{
 					"components": map[string]any{
-						"skills": []map[string]any{{"name": "skill-a"}, {"name": "skill-b"}},
-						"hooks":  []any{},
-						"mcpServers": []map[string]any{{"name": "mcp-x"}},
+						"skills":     []map[string]any{{"name": "skill-a"}, {"name": "skill-b"}},
+						"hooks":      []any{},
+						"mcpServers": []string{"mcp-x"},
 						"lspServers": []any{},
 					},
 				},
