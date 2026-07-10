@@ -184,15 +184,13 @@ type catalogComponents struct {
 
 type catalogPlugin struct {
 	Components struct {
-		// Skills and Hooks are arrays of {"name": ..., ...} objects in the
-		// real catalog cache; MCPServers and LSPServers are arrays of plain
-		// server-name strings.
+		// Skills is an array of {"name": ..., ...} objects in the real
+		// catalog cache; Hooks/MCPServers/LSPServers are arrays of plain
+		// strings (hook event names, server names).
 		Skills []struct {
 			Name string `json:"name"`
 		} `json:"skills"`
-		Hooks []struct {
-			Name string `json:"name"`
-		} `json:"hooks"`
+		Hooks      []string `json:"hooks"`
 		MCPServers []string `json:"mcpServers"`
 		LSPServers []string `json:"lspServers"`
 	} `json:"components"`
@@ -223,9 +221,7 @@ func loadCatalog(path string) (map[string]catalogComponents, error) {
 		for _, s := range p.Components.Skills {
 			comp.skills = append(comp.skills, s.Name)
 		}
-		for _, h := range p.Components.Hooks {
-			comp.hooks = append(comp.hooks, h.Name)
-		}
+		comp.hooks = append(comp.hooks, p.Components.Hooks...)
 		comp.mcpServers = append(comp.mcpServers, p.Components.MCPServers...)
 		comp.lspServers = append(comp.lspServers, p.Components.LSPServers...)
 		out[fullName] = comp
