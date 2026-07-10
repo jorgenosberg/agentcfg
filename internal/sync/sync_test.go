@@ -1138,3 +1138,35 @@ func TestCopyAny_SymlinkedRoot(t *testing.T) {
 		t.Errorf("content mismatch: %q", data)
 	}
 }
+
+func TestCopyAny_Dir_ToleratesDanglingNestedSymlink(t *testing.T) {
+	srcDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(srcDir, "real.txt"), []byte("kept"), 0o644); err != nil {
+		t.Fatalf("write real.txt: %v", err)
+	}
+	// A symlink whose target does not exist, nested inside the tree being
+	// copied — must not abort the copy (regression: previously errored via
+	// os.Open on the dangling target).
+	dangling := filepath.Join(srcDir, "gone")
+	if err := os.Symlink(filepath.Join(srcDir, "does-not-exist.txt"), dangling); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	dstDir := filepath.Join(t.TempDir(), "dest")
+	if err := sync.CopyAny(srcDir, dstDir); err != nil {
+		t.Fatalf("CopyAny with dangling nested symlink: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dstDir, "real.txt"))
+	if err != nil || string(data) != "kept" {
+		t.Errorf("real.txt not copied correctly: %v %q", err, data)
+	}
+
+	fi, err := os.Lstat(filepath.Join(dstDir, "gone"))
+	if err != nil {
+		t.Fatalf("dangling symlink not recreated: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Error("expected 'gone' to be recreated as a symlink")
+	}
+}
