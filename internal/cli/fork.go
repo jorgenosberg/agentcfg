@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/fork"
 	"github.com/jorgenosberg/agentcfg/internal/forks"
 	"github.com/jorgenosberg/agentcfg/internal/marketplace"
+	"github.com/jorgenosberg/agentcfg/internal/paths"
 	"github.com/jorgenosberg/agentcfg/internal/plugins"
 )
 
@@ -19,11 +22,13 @@ import (
 //
 // Usage:
 //
-//	agentcfg fork <plugin@marketplace>   # fork a plugin
-//	agentcfg fork list                   # list recorded forks
-//	agentcfg fork status                 # check drift vs upstream
+//	agentcfg fork <plugin@marketplace>                                  # fork a plugin (default: ~/.claude)
+//	agentcfg fork <plugin@marketplace> --claude-dir a --claude-dir b    # fork into multiple Claude Code homes
+//	agentcfg fork list                                                  # list recorded forks
+//	agentcfg fork status                                                # check drift vs upstream
 func newForkCmd() *cobra.Command {
 	var dryRun bool
+	var claudeDirs []string
 
 	c := &cobra.Command{
 		Use:   "fork <plugin@marketplace>",
@@ -32,6 +37,10 @@ func newForkCmd() *cobra.Command {
 			"fork marketplace (~/.agentcfg/forks/), registers it with Claude Code, " +
 			"disables the upstream plugin, and enables the fork. You own the copy " +
 			"and can edit any file in it directly.\n\n" +
+			"Pass --claude-dir (repeatable) to register the fork with more than one " +
+			"Claude Code home (e.g. a second account's directory); the bundle is " +
+			"still copied only once and shared across all of them. Defaults to " +
+			"~/.claude when omitted.\n\n" +
 			"Use the `list` and `status` subcommands to inspect recorded forks.",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -40,16 +49,13 @@ func newForkCmd() *cobra.Command {
 			}
 			fullName := args[0]
 
-			reg, err := plugins.Load()
-			if err != nil {
-				return fmt.Errorf("load plugins: %w", err)
-			}
-			plugin, ok := reg.Get(fullName)
-			if !ok {
-				return fmt.Errorf("plugin %q not found in Claude Code plugin registry", fullName)
-			}
-			if !plugin.Installed {
-				return fmt.Errorf("plugin %q is not installed", fullName)
+			dirs := claudeDirs
+			if len(dirs) == 0 {
+				home, err := paths.Home()
+				if err != nil {
+					return err
+				}
+				dirs = []string{filepath.Join(home, ".claude")}
 			}
 
 			forksRoot, err := marketplace.DefaultForksRoot()
@@ -60,54 +66,68 @@ func newForkCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			settingsPath, err := claudecfg.DefaultPath()
-			if err != nil {
-				return fmt.Errorf("resolve settings path: %w", err)
-			}
-			knownMPPath, err := marketplace.DefaultKnownMarketplacesPath()
-			if err != nil {
-				return fmt.Errorf("resolve known_marketplaces path: %w", err)
-			}
-			installedPath, err := marketplace.DefaultInstalledPluginsPath()
-			if err != nil {
-				return fmt.Errorf("resolve installed_plugins path: %w", err)
-			}
 
-			if dryRun {
+			var forkedAny bool
+			for _, dir := range dirs {
+				pluginsDir := filepath.Join(dir, "plugins")
+				reg, err := plugins.LoadFrom(pluginsDir)
+				if err != nil {
+					return fmt.Errorf("load plugins for %s: %w", dir, err)
+				}
+				plugin, ok := reg.Get(fullName)
+				if !ok {
+					fmt.Fprintf(cmd.OutOrStdout(), "skip %s: plugin %q not found in Claude Code plugin registry\n", dir, fullName)
+					continue
+				}
+				if !plugin.Installed {
+					fmt.Fprintf(cmd.OutOrStdout(), "skip %s: plugin %q is not installed\n", dir, fullName)
+					continue
+				}
+
 				bundleDest := marketplace.BundlePath(forksRoot, plugin.Name)
 				forkFullName := marketplace.ForkFullName(plugin.Name)
-				fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would fork %q\n", fullName)
-				fmt.Fprintf(cmd.OutOrStdout(), "  bundle source:  %s\n", plugin.InstallPath)
-				fmt.Fprintf(cmd.OutOrStdout(), "  bundle dest:    %s\n", bundleDest)
-				fmt.Fprintf(cmd.OutOrStdout(), "  fork identity:  %s\n", forkFullName)
-				fmt.Fprintf(cmd.OutOrStdout(), "  enable:         %s\n", forkFullName)
-				fmt.Fprintf(cmd.OutOrStdout(), "  disable:        %s\n", fullName)
-				return nil
+
+				if dryRun {
+					fmt.Fprintf(cmd.OutOrStdout(), "dry-run: would fork %q for %s\n", fullName, dir)
+					fmt.Fprintf(cmd.OutOrStdout(), "  bundle source:  %s\n", plugin.InstallPath)
+					fmt.Fprintf(cmd.OutOrStdout(), "  bundle dest:    %s\n", bundleDest)
+					fmt.Fprintf(cmd.OutOrStdout(), "  fork identity:  %s\n", forkFullName)
+					fmt.Fprintf(cmd.OutOrStdout(), "  enable:         %s\n", forkFullName)
+					fmt.Fprintf(cmd.OutOrStdout(), "  disable:        %s\n", fullName)
+					continue
+				}
+
+				req := fork.Request{
+					Plugin:                plugin,
+					ForksRoot:             forksRoot,
+					ForksPath:             forksPath,
+					SettingsPath:          claudecfg.PathIn(dir),
+					KnownMarketplacesPath: marketplace.KnownMarketplacesPathIn(dir),
+					InstalledPluginsPath:  marketplace.InstalledPluginsPathIn(dir),
+					ClaudeDir:             dir,
+				}
+
+				res, err := fork.Execute(req)
+				if err != nil {
+					return fmt.Errorf("fork for %s: %w", dir, err)
+				}
+				forkedAny = true
+
+				fmt.Fprintf(cmd.OutOrStdout(), "forked %q for %s\n", fullName, dir)
+				fmt.Fprintf(cmd.OutOrStdout(), "  bundle: %s\n", res.BundlePath)
+				fmt.Fprintf(cmd.OutOrStdout(), "  fork:   %s (enabled)\n", res.ForkFullName)
+				fmt.Fprintf(cmd.OutOrStdout(), "  upstream %s disabled\n", fullName)
 			}
 
-			req := fork.Request{
-				Plugin:                plugin,
-				ForksRoot:             forksRoot,
-				ForksPath:             forksPath,
-				SettingsPath:          settingsPath,
-				KnownMarketplacesPath: knownMPPath,
-				InstalledPluginsPath:  installedPath,
+			if !dryRun && !forkedAny {
+				return fmt.Errorf("plugin %q was not installed in any of the given Claude directories", fullName)
 			}
-
-			res, err := fork.Execute(req)
-			if err != nil {
-				return err
-			}
-
-			fmt.Fprintf(cmd.OutOrStdout(), "forked %q\n", fullName)
-			fmt.Fprintf(cmd.OutOrStdout(), "  bundle: %s\n", res.BundlePath)
-			fmt.Fprintf(cmd.OutOrStdout(), "  fork:   %s (enabled)\n", res.ForkFullName)
-			fmt.Fprintf(cmd.OutOrStdout(), "  upstream %s disabled\n", fullName)
 			return nil
 		},
 	}
 
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "print what would be forked without making changes")
+	c.Flags().StringArrayVar(&claudeDirs, "claude-dir", nil, "Claude Code home directory to fork into (repeatable); defaults to ~/.claude")
 
 	c.AddCommand(
 		newForkListCmd(),
@@ -165,7 +185,7 @@ func newForkStatusCmd() *cobra.Command {
 			}
 
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "PLUGIN\tFORKED AT\tFORKED SHA\tCURRENT SHA\tSTATUS")
+			fmt.Fprintln(tw, "PLUGIN\tFORKED AT\tFORKED SHA\tCURRENT SHA\tSTATUS\tCLAUDE DIRS")
 			for upstreamName, f := range ff.Forks {
 				currentSHA := "(not installed)"
 				driftStatus := "plugin not installed"
@@ -180,12 +200,13 @@ func newForkStatusCmd() *cobra.Command {
 						driftStatus = "upstream advanced"
 					}
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
 					upstreamName,
 					f.ForkedAt.Format(time.DateOnly),
 					shortSHA(f.SourceVersion),
 					currentSHA,
 					driftStatus,
+					strings.Join(f.ClaudeDirs, ", "),
 				)
 			}
 			return tw.Flush()
@@ -202,13 +223,14 @@ func shortSHA(sha string) string {
 
 func writeForkList(w io.Writer, ff *forks.ForkFile) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "PLUGIN\tFORKED AT\tSHA\tBUNDLE")
+	fmt.Fprintln(tw, "PLUGIN\tFORKED AT\tSHA\tBUNDLE\tCLAUDE DIRS")
 	for upstreamName, f := range ff.Forks {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 			upstreamName,
 			f.ForkedAt.Format(time.DateOnly),
 			shortSHA(f.SourceVersion),
 			f.BundlePath,
+			strings.Join(f.ClaudeDirs, ", "),
 		)
 	}
 	return tw.Flush()

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/jorgenosberg/agentcfg/internal/paths"
@@ -18,11 +19,17 @@ type ForkFile struct {
 // Fork records one plugin fork operation.
 type Fork struct {
 	ForkedAt         time.Time `json:"forked_at"`
-	SourceVersion    string    `json:"source_version"`    // upstream GitCommitSha at fork time
+	SourceVersion    string    `json:"source_version"`     // upstream GitCommitSha at fork time
 	UpstreamFullName string    `json:"upstream_full_name"` // "<name>@<marketplace>"
 	ForkFullName     string    `json:"fork_full_name"`     // "<name>@agentcfg-forks"
 	BundlePath       string    `json:"bundle_path"`        // ~/.agentcfg/forks/plugins/<name>
 	UpstreamDisabled bool      `json:"upstream_disabled"`
+	ClaudeDirs       []string  `json:"claude_dirs,omitempty"` // Claude Code dirs the fork is registered into
+}
+
+// HasClaudeDir reports whether dir is already recorded on the fork.
+func (f Fork) HasClaudeDir(dir string) bool {
+	return slices.Contains(f.ClaudeDirs, dir)
 }
 
 // Load reads the forks file at path. Returns an empty ForkFile if the file is missing.

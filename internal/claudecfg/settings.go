@@ -15,7 +15,14 @@ func DefaultPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".claude", "settings.json"), nil
+	return PathIn(filepath.Join(home, ".claude")), nil
+}
+
+// PathIn returns the settings.json path inside an arbitrary Claude Code
+// directory, letting callers target a profile other than the default
+// ~/.claude (e.g. a second Claude Code home for a different account).
+func PathIn(claudeDir string) string {
+	return filepath.Join(claudeDir, "settings.json")
 }
 
 // SetPluginEnabled sets the enabled state of a plugin in ~/.claude/settings.json.
