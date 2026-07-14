@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,76 @@ func TestList_ShowsItems(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("list output missing %q: %s", want, out)
 		}
+	}
+}
+
+func TestList_JSON(t *testing.T) {
+	home := sandbox(t)
+	srcDir := defaultSource(home)
+
+	cfg := defaultConfig(home)
+	seedConfig(t, home, cfg)
+	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
+
+	out, err := runCLI(t, "list", "--json")
+	if err != nil {
+		t.Fatalf("list --json: %v\noutput: %s", err, out)
+	}
+	var items []struct {
+		Kind string `json:"kind"`
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(out), &items); err != nil {
+		t.Fatalf("list --json produced invalid JSON: %v\noutput: %s", err, out)
+	}
+	if len(items) != 1 || items[0].Name != "CLAUDE.md" || items[0].Kind != "context" {
+		t.Errorf("unexpected items: %+v", items)
+	}
+}
+
+func TestList_JSONEmpty(t *testing.T) {
+	home := sandbox(t)
+	cfg := defaultConfig(home)
+	seedConfig(t, home, cfg)
+
+	out, err := runCLI(t, "list", "--json")
+	if err != nil {
+		t.Fatalf("list --json (empty): %v\noutput: %s", err, out)
+	}
+	if strings.TrimSpace(out) != "[]" {
+		t.Errorf("expected empty JSON array, got: %s", out)
+	}
+}
+
+func TestStatus_JSON(t *testing.T) {
+	home := sandbox(t)
+	srcDir := defaultSource(home)
+
+	cfg := defaultConfig(home)
+	seedConfig(t, home, cfg)
+	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
+
+	out, err := runCLI(t, "status", "--json")
+	if err != nil {
+		t.Fatalf("status --json: %v\noutput: %s", err, out)
+	}
+	var entries []struct {
+		Target string `json:"target"`
+		Kind   string `json:"kind"`
+		Item   string `json:"item"`
+		Status string `json:"status"`
+		Dest   string `json:"dest"`
+	}
+	if err := json.Unmarshal([]byte(out), &entries); err != nil {
+		t.Fatalf("status --json produced invalid JSON: %v\noutput: %s", err, out)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d: %+v", len(entries), entries)
+	}
+	e := entries[0]
+	if e.Target != "claude" || e.Item != "CLAUDE.md" || e.Status != "absent" || e.Dest == "" {
+		t.Errorf("unexpected entry: %+v", e)
 	}
 }
 

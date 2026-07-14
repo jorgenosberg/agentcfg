@@ -12,7 +12,8 @@ import (
 )
 
 func newListCmd(load func() (config.Config, error)) *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	c := &cobra.Command{
 		Use:   "list",
 		Short: "List items in the source tree",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -24,13 +25,19 @@ func newListCmd(load func() (config.Config, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if asJSON {
+				return writeItemsJSON(cmd.OutOrStdout(), items)
+			}
 			return writeItems(cmd.OutOrStdout(), items, cfg.Source)
 		},
 	}
+	c.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return c
 }
 
 func newStatusCmd(load func() (config.Config, error)) *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	c := &cobra.Command{
 		Use:   "status",
 		Short: "Show install state of every item across every target",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -43,9 +50,14 @@ func newStatusCmd(load func() (config.Config, error)) *cobra.Command {
 				return err
 			}
 			entries := sync.Inspect(cfg, items)
+			if asJSON {
+				return writeStatusJSON(cmd.OutOrStdout(), entries)
+			}
 			return writeStatus(cmd.OutOrStdout(), entries)
 		},
 	}
+	c.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return c
 }
 
 func newInstallCmd(load func() (config.Config, error)) *cobra.Command {

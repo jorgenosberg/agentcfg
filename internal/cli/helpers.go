@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"text/tabwriter"
@@ -39,6 +40,49 @@ func writeStatus(w io.Writer, entries []sync.Entry) error {
 			e.Target.Name, e.Item.Kind, e.Item.Name, label, e.Dest)
 	}
 	return tw.Flush()
+}
+
+func writeItemsJSON(w io.Writer, items []source.Item) error {
+	type itemJSON struct {
+		Kind string `json:"kind"`
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	out := make([]itemJSON, 0, len(items))
+	for _, it := range items {
+		out = append(out, itemJSON{Kind: it.Kind, Name: it.Name, Path: it.Path})
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+func writeStatusJSON(w io.Writer, entries []sync.Entry) error {
+	type entryJSON struct {
+		Target string `json:"target"`
+		Kind   string `json:"kind"`
+		Item   string `json:"item"`
+		Status string `json:"status"`
+		Dest   string `json:"dest"`
+		Plugin string `json:"plugin,omitempty"`
+	}
+	out := make([]entryJSON, 0, len(entries))
+	for _, e := range entries {
+		ej := entryJSON{
+			Target: e.Target.Name,
+			Kind:   e.Item.Kind,
+			Item:   e.Item.Name,
+			Status: string(e.Status),
+			Dest:   e.Dest,
+		}
+		if e.Plugin != nil {
+			ej.Plugin = e.Plugin.FullName
+		}
+		out = append(out, ej)
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 func findItem(items []source.Item, name string) (source.Item, bool) {
