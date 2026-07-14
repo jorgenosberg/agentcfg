@@ -14,6 +14,7 @@ agentcfg status [flags]
 
 ```
   -h, --help   help for status
+      --json   output as JSON
 ```
 
 ## Options inherited from parent commands

@@ -14,6 +14,7 @@ agentcfg list [flags]
 
 ```
   -h, --help   help for list
+      --json   output as JSON
 ```
 
 ## Options inherited from parent commands
