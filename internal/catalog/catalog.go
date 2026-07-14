@@ -6,12 +6,12 @@
 // Sources (verified 2026-06):
 //   - Claude Code:    ~/.claude           (skills/, hooks/, CLAUDE.md)
 //   - Codex CLI:      ~/.codex            (AGENTS.md, AGENTS.override.md)
-//                     user-level skills go to ~/.agents/skills/ — covered by the agents entry
+//     user-level skills go to ~/.agents/skills/ — covered by the agents entry
 //   - Copilot CLI:    ~/.copilot          (copilot-instructions.md)
 //   - Antigravity CLI (fka Gemini CLI):
-//                     ~/.gemini           (GEMINI.md — global context, unchanged from Gemini CLI)
-//                     ~/.gemini/antigravity-cli/skills/  (user-level skills; was ~/.gemini/skills/)
-//                     workspace skills:   .agents/skills/ — covered by the agents entry
+//     ~/.gemini           (GEMINI.md — global context, unchanged from Gemini CLI)
+//     ~/.gemini/antigravity-cli/skills/  (user-level skills; was ~/.gemini/skills/)
+//     workspace skills:   .agents/skills/ — covered by the agents entry
 //   - opencode:       ~/.config/opencode  (skills/, AGENTS.md)
 //   - agents:         ~/.agents           (skills/, AGENTS.md) — shared by Codex, Antigravity, opencode
 package catalog

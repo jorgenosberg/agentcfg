@@ -80,16 +80,16 @@ type model struct {
 	knownMPPath          string
 	installedPluginsPath string
 	cursor               int
-	offset        int
-	width         int
-	height        int
-	status        string
-	mode          viewMode
-	sourceKind    string // kind filter for agentcfg view: "" = all, else KindSkill/Hook/Context
-	sourceTarget  string // target filter for agentcfg view: "" = all
-	targetFilter  string // target filter for agent folders view: "" = all
-	overlay       overlayModel
-	filterFocus   int // focusNone, focusKind, or focusTarget
+	offset               int
+	width                int
+	height               int
+	status               string
+	mode                 viewMode
+	sourceKind           string // kind filter for agentcfg view: "" = all, else KindSkill/Hook/Context
+	sourceTarget         string // target filter for agentcfg view: "" = all
+	targetFilter         string // target filter for agent folders view: "" = all
+	overlay              overlayModel
+	filterFocus          int // focusNone, focusKind, or focusTarget
 }
 
 type groupedItem struct {
@@ -547,13 +547,13 @@ var (
 	hintKeyStyle        = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("78"))
 	hintDescStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 
-	statusLinkedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
-	statusCopiedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
-	statusDriftedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	statusAbsentStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	statusUnmanagedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	statusDisabledStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
-	statusPluginOwnedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	statusLinkedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
+	statusCopiedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
+	statusDriftedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	statusAbsentStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	statusUnmanagedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	statusDisabledStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
+	statusPluginOwnedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 	statusPluginSiblingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Faint(true)
 )
 
@@ -1353,4 +1353,3 @@ func (m model) renderFooter(w int) string {
 	gap := max(1, w-lv-rv)
 	return left + strings.Repeat(" ", gap) + right
 }
-
