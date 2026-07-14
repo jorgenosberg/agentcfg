@@ -86,7 +86,7 @@ func buildForkFixtureIn(t *testing.T, claudeDir string) string {
 				"myplugin@market": map[string]any{
 					"components": map[string]any{
 						"skills":     []map[string]any{{"name": "my-skill"}},
-						"hooks":      []map[string]any{{"name": "my-hook.sh"}},
+						"hooks":      []string{"my-hook.sh"},
 						"mcpServers": []any{},
 						"lspServers": []any{},
 					},
