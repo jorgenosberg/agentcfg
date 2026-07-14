@@ -4,6 +4,7 @@
       "release-type": "go",
       "exclude-paths": [
         "docs",
+        "raycast",
         ".github"
       ]
     }
