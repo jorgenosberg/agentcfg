@@ -109,6 +109,7 @@ func TestStatus_JSON(t *testing.T) {
 		Kind   string `json:"kind"`
 		Item   string `json:"item"`
 		Status string `json:"status"`
+		Path   string `json:"path"`
 		Dest   string `json:"dest"`
 	}
 	if err := json.Unmarshal([]byte(out), &entries); err != nil {
@@ -118,7 +119,7 @@ func TestStatus_JSON(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d: %+v", len(entries), entries)
 	}
 	e := entries[0]
-	if e.Target != "claude" || e.Item != "CLAUDE.md" || e.Status != "absent" || e.Dest == "" {
+	if e.Target != "claude" || e.Item != "CLAUDE.md" || e.Status != "absent" || e.Dest == "" || e.Path == "" {
 		t.Errorf("unexpected entry: %+v", e)
 	}
 }

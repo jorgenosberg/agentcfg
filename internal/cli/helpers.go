@@ -74,6 +74,7 @@ func writeStatusJSON(w io.Writer, entries []sync.Entry) error {
 		Kind   string `json:"kind"`
 		Item   string `json:"item"`
 		Status string `json:"status"`
+		Path   string `json:"path,omitempty"`
 		Dest   string `json:"dest"`
 		Plugin string `json:"plugin,omitempty"`
 	}
@@ -84,6 +85,7 @@ func writeStatusJSON(w io.Writer, entries []sync.Entry) error {
 			Kind:   e.Item.Kind,
 			Item:   e.Item.Name,
 			Status: string(e.Status),
+			Path:   e.Item.Path,
 			Dest:   e.Dest,
 		}
 		if e.Plugin != nil {
