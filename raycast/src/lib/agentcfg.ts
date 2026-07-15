@@ -22,6 +22,7 @@ export interface StatusEntry {
   kind: string;
   item: string;
   status: string;
+  path?: string;
   dest: string;
   plugin?: string;
 }
