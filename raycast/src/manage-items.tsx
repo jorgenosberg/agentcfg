@@ -120,10 +120,17 @@ export default function ManageItems() {
             .filter((g) => g.kind === kind)
             .map((group) => {
               const scoped = target === "all" ? group.entries : group.entries.filter((e) => e.target === target);
-              const accessories =
-                target === "all"
+              const allDisabled = scoped.length > 0 && scoped.every((e) => e.status === "disabled");
+              const accessories = [
+                ...(allDisabled && target === "all"
+                  ? [{ tag: { value: "disabled", color: Color.SecondaryText } }]
+                  : []),
+                ...(target === "all"
                   ? group.entries.map((e) => ({
-                      tag: { value: e.target, color: STATUS_COLORS[e.status] ?? Color.SecondaryText },
+                      tag: {
+                        value: e.status === "disabled" && !allDisabled ? `${e.target} (off)` : e.target,
+                        color: STATUS_COLORS[e.status] ?? Color.SecondaryText,
+                      },
                       tooltip: e.status,
                     }))
                   : [
@@ -133,14 +140,19 @@ export default function ManageItems() {
                           color: STATUS_COLORS[scoped[0]?.status] ?? Color.SecondaryText,
                         },
                       },
-                    ];
+                    ]),
+              ];
               return (
                 <List.Item
                   key={`${group.kind}/${group.name}`}
-                  icon={{
-                    source: KIND_ICONS[group.kind] ?? Icon.Dot,
-                    tintColor: STATUS_COLORS[worstStatus(scoped)] ?? Color.PrimaryText,
-                  }}
+                  icon={
+                    allDisabled
+                      ? { source: Icon.MinusCircle, tintColor: Color.SecondaryText }
+                      : {
+                          source: KIND_ICONS[group.kind] ?? Icon.Dot,
+                          tintColor: STATUS_COLORS[worstStatus(scoped)] ?? Color.PrimaryText,
+                        }
+                  }
                   title={group.name}
                   accessories={accessories}
                   detail={
