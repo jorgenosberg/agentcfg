@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,7 +10,9 @@ import (
 
 func main() {
 	if err := cli.NewRoot().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "agentcfg:", err)
+		if !errors.Is(err, cli.ErrSilent) {
+			fmt.Fprintln(os.Stderr, "agentcfg:", err)
+		}
 		os.Exit(1)
 	}
 }

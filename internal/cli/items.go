@@ -17,18 +17,27 @@ func newListCmd(load func() (config.Config, error)) *cobra.Command {
 		Use:   "list",
 		Short: "List items in the source tree",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := load()
-			if err != nil {
+			run := func() error {
+				cfg, err := load()
+				if err != nil {
+					return err
+				}
+				items, err := source.Scan(cfg.Source)
+				if err != nil {
+					return err
+				}
+				if asJSON {
+					return writeItemsJSON(cmd.OutOrStdout(), items)
+				}
+				return writeItems(cmd.OutOrStdout(), items, cfg.Source)
+			}
+			if err := run(); err != nil {
+				if asJSON {
+					return writeJSONError(cmd.ErrOrStderr(), err)
+				}
 				return err
 			}
-			items, err := source.Scan(cfg.Source)
-			if err != nil {
-				return err
-			}
-			if asJSON {
-				return writeItemsJSON(cmd.OutOrStdout(), items)
-			}
-			return writeItems(cmd.OutOrStdout(), items, cfg.Source)
+			return nil
 		},
 	}
 	c.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
@@ -41,19 +50,28 @@ func newStatusCmd(load func() (config.Config, error)) *cobra.Command {
 		Use:   "status",
 		Short: "Show install state of every item across every target",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := load()
-			if err != nil {
+			run := func() error {
+				cfg, err := load()
+				if err != nil {
+					return err
+				}
+				items, err := source.Scan(cfg.Source)
+				if err != nil {
+					return err
+				}
+				entries := sync.Inspect(cfg, items)
+				if asJSON {
+					return writeStatusJSON(cmd.OutOrStdout(), entries)
+				}
+				return writeStatus(cmd.OutOrStdout(), entries)
+			}
+			if err := run(); err != nil {
+				if asJSON {
+					return writeJSONError(cmd.ErrOrStderr(), err)
+				}
 				return err
 			}
-			items, err := source.Scan(cfg.Source)
-			if err != nil {
-				return err
-			}
-			entries := sync.Inspect(cfg, items)
-			if asJSON {
-				return writeStatusJSON(cmd.OutOrStdout(), entries)
-			}
-			return writeStatus(cmd.OutOrStdout(), entries)
+			return nil
 		},
 	}
 	c.Flags().BoolVar(&asJSON, "json", false, "output as JSON")

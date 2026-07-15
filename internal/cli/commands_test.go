@@ -2,10 +2,13 @@ package cli_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jorgenosberg/agentcfg/internal/cli"
 )
 
 // --- list ---
@@ -65,6 +68,27 @@ func TestList_JSONEmpty(t *testing.T) {
 	}
 	if strings.TrimSpace(out) != "[]" {
 		t.Errorf("expected empty JSON array, got: %s", out)
+	}
+}
+
+func TestList_JSONError(t *testing.T) {
+	sandbox(t) // no config seeded: load must fail
+
+	out, err := runCLI(t, "list", "--json")
+	if err == nil {
+		t.Fatalf("expected error, got none\noutput: %s", out)
+	}
+	if !errors.Is(err, cli.ErrSilent) {
+		t.Errorf("expected ErrSilent, got: %v", err)
+	}
+	var payload struct {
+		Error string `json:"error"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &payload); jerr != nil {
+		t.Fatalf("stderr is not JSON: %v\noutput: %s", jerr, out)
+	}
+	if !strings.Contains(payload.Error, "no config found") {
+		t.Errorf("unexpected error message: %q", payload.Error)
 	}
 }
 
