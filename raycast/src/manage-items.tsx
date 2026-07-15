@@ -108,10 +108,29 @@ export default function ManageItems() {
         <List.EmptyView
           icon={Icon.Warning}
           title={needsInit ? "agentcfg is not initialized" : "Could not load status"}
-          description={needsInit ? "Run agentcfg init in a terminal to bootstrap, then retry." : message}
+          description={
+            needsInit ? "Initialize to create the config and source tree, then add targets and items." : message
+          }
           actions={
             <ActionPanel>
-              {needsInit && <Action.CopyToClipboard title="Copy Init Command" content="agentcfg init" />}
+              {needsInit && (
+                <Action
+                  icon={Icon.Wand}
+                  title="Initialize Agentcfg"
+                  onAction={async () => {
+                    const toast = await showToast({ style: Toast.Style.Animated, title: "Initializing…" });
+                    try {
+                      await runAgentcfg(["init", "--no-interactive"]);
+                      toast.style = Toast.Style.Success;
+                      toast.title = "Initialized";
+                      revalidate();
+                    } catch (initError) {
+                      toast.hide();
+                      await showFailureToast(initError, { title: "Initialize failed" });
+                    }
+                  }}
+                />
+              )}
               <Action title="Retry" icon={Icon.ArrowClockwise} onAction={revalidate} />
               <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
             </ActionPanel>
@@ -220,13 +239,13 @@ export default function ManageItems() {
                       />
                       <Action
                         icon={Icon.Switch}
-                        title={target === "all" ? "Toggle Item" : `Toggle on ${target}`}
+                        title={target === "all" ? "Toggle Item" : `Toggle for ${target}`}
                         onAction={() => act(`Toggling ${group.name}…`, ["toggle", group.name, ...scope])}
                       />
                       {target === "all" && group.entries.length > 1 && (
                         <ActionPanel.Submenu
                           icon={Icon.Switch}
-                          title="Toggle on Target…"
+                          title="Toggle for Target…"
                           shortcut={{ modifiers: ["cmd", "shift"], key: "t" }}
                         >
                           {group.entries.map((e) => (
@@ -247,7 +266,7 @@ export default function ManageItems() {
                       <ActionPanel.Section>
                         <Action
                           icon={Icon.Download}
-                          title={target === "all" ? "Install" : `Install on ${target}`}
+                          title={target === "all" ? "Install" : `Install to ${target}`}
                           shortcut={{ modifiers: ["cmd"], key: "i" }}
                           onAction={() => act(`Installing ${group.name}…`, ["install", group.name, ...scope])}
                         />
