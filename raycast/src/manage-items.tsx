@@ -185,6 +185,27 @@ export default function ManageItems() {
                         title={target === "all" ? "Toggle Item" : `Toggle on ${target}`}
                         onAction={() => act(`Toggling ${group.name}…`, ["toggle", group.name, ...scope])}
                       />
+                      {target === "all" && group.entries.length > 1 && (
+                        <ActionPanel.Submenu
+                          icon={Icon.Switch}
+                          title="Toggle on Target"
+                          shortcut={{ modifiers: ["cmd", "shift"], key: "t" }}
+                        >
+                          {group.entries.map((e) => (
+                            <Action
+                              key={e.target}
+                              icon={{
+                                source: e.status === "disabled" ? Icon.Circle : Icon.CheckCircle,
+                                tintColor: STATUS_COLORS[e.status] ?? Color.SecondaryText,
+                              }}
+                              title={`${e.target} (${e.status})`}
+                              onAction={() =>
+                                act(`Toggling ${group.name} on ${e.target}…`, ["toggle", group.name, "-t", e.target])
+                              }
+                            />
+                          ))}
+                        </ActionPanel.Submenu>
+                      )}
                       <ActionPanel.Section>
                         <Action
                           icon={Icon.Download}
