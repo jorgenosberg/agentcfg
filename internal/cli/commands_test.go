@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/jorgenosberg/agentcfg/internal/cli"
+	"github.com/jorgenosberg/agentcfg/internal/config"
 )
 
 // --- list ---
@@ -89,6 +90,70 @@ func TestList_JSONError(t *testing.T) {
 	}
 	if !strings.Contains(payload.Error, "no config found") {
 		t.Errorf("unexpected error message: %q", payload.Error)
+	}
+}
+
+func TestToggle_ExactNameBeatsSharedAlias(t *testing.T) {
+	home := sandbox(t)
+	srcDir := defaultSource(home)
+
+	cfg := defaultConfig(home)
+	cfg.Targets = []config.Target{
+		{Name: "claude", Path: filepath.Join(home, ".claude"), Agent: "claude", Alias: "claude"},
+		{Name: "claude-knowit", Path: filepath.Join(home, ".claude-knowit"), Agent: "claude", Alias: "claude"},
+	}
+	seedConfig(t, home, cfg)
+	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
+
+	out, err := runCLI(t, "toggle", "CLAUDE.md", "-t", "claude", "--off")
+	if err != nil {
+		t.Fatalf("toggle: %v\noutput: %s", err, out)
+	}
+
+	loaded, err := config.Load(filepath.Join(home, ".agentcfg", "config.json"))
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	for _, tgt := range loaded.Targets {
+		disabled := len(tgt.Disabled) > 0
+		switch tgt.Name {
+		case "claude":
+			if !disabled {
+				t.Errorf("target %q: expected item disabled", tgt.Name)
+			}
+		case "claude-knowit":
+			if disabled {
+				t.Errorf("target %q: alias must not widen exact-name selection, disabled=%v", tgt.Name, tgt.Disabled)
+			}
+		}
+	}
+}
+
+func TestToggle_AliasSelectsGroup(t *testing.T) {
+	home := sandbox(t)
+	srcDir := defaultSource(home)
+
+	cfg := defaultConfig(home)
+	cfg.Targets = []config.Target{
+		{Name: "claude-personal", Path: filepath.Join(home, ".claude"), Agent: "claude", Alias: "claude"},
+		{Name: "claude-knowit", Path: filepath.Join(home, ".claude-knowit"), Agent: "claude", Alias: "claude"},
+	}
+	seedConfig(t, home, cfg)
+	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
+
+	out, err := runCLI(t, "toggle", "CLAUDE.md", "-t", "claude", "--off")
+	if err != nil {
+		t.Fatalf("toggle: %v\noutput: %s", err, out)
+	}
+
+	loaded, err := config.Load(filepath.Join(home, ".agentcfg", "config.json"))
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	for _, tgt := range loaded.Targets {
+		if len(tgt.Disabled) == 0 {
+			t.Errorf("target %q: expected item disabled via group alias", tgt.Name)
+		}
 	}
 }
 

@@ -107,13 +107,24 @@ func findItem(items []source.Item, name string) (source.Item, bool) {
 	return source.Item{}, false
 }
 
+// selectTargets resolves name against target names first, then group
+// aliases, so an alias shared with a target's exact name cannot widen the
+// selection beyond that target.
 func selectTargets(all []config.Target, name string) []config.Target {
 	if name == "" {
 		return all
 	}
 	var out []config.Target
 	for _, t := range all {
-		if t.Name == name || (t.Alias != "" && t.Alias == name) {
+		if t.Name == name {
+			out = append(out, t)
+		}
+	}
+	if len(out) > 0 {
+		return out
+	}
+	for _, t := range all {
+		if t.Alias != "" && t.Alias == name {
 			out = append(out, t)
 		}
 	}
