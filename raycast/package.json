@@ -14,10 +14,32 @@
   "license": "MIT",
   "commands": [
     {
+      "name": "list-items",
+      "title": "List Items",
+      "description": "Browse skills, hooks, and instruction files in the agentcfg source tree.",
+      "mode": "view"
+    },
+    {
+      "name": "show-status",
+      "title": "Show Status",
+      "description": "Show the install state of every item across every agent target.",
+      "mode": "view"
+    },
+    {
       "name": "sync-configs",
       "title": "Sync Configs",
       "description": "Run agentcfg sync across all configured agent targets.",
       "mode": "no-view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "binaryPath",
+      "title": "agentcfg Binary",
+      "description": "Path to the agentcfg binary. Leave empty to auto-detect from common install locations.",
+      "type": "textfield",
+      "required": false,
+      "placeholder": "/opt/homebrew/bin/agentcfg"
     }
   ],
   "dependencies": {
