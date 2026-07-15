@@ -122,9 +122,7 @@ export default function ManageItems() {
               const scoped = target === "all" ? group.entries : group.entries.filter((e) => e.target === target);
               const allDisabled = scoped.length > 0 && scoped.every((e) => e.status === "disabled");
               const accessories = [
-                ...(allDisabled && target === "all"
-                  ? [{ tag: { value: "disabled", color: Color.SecondaryText } }]
-                  : []),
+                ...(allDisabled && target === "all" ? [{ text: "disabled" }] : []),
                 ...(target === "all"
                   ? group.entries.map((e) => ({
                       tag: {
