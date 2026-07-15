@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"text/tabwriter"
@@ -10,6 +11,16 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 )
+
+// ErrSilent marks errors already reported on stderr; main must not print them again.
+var ErrSilent = errors.New("silent error")
+
+func writeJSONError(w io.Writer, err error) error {
+	if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+		return err
+	}
+	return fmt.Errorf("%w: %s", ErrSilent, err)
+}
 
 func writeItems(w io.Writer, items []source.Item, sourcePath string) error {
 	if len(items) == 0 {
