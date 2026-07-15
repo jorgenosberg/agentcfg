@@ -14,15 +14,9 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "list-items",
-      "title": "List Items",
-      "description": "Browse skills, hooks, and instruction files in the agentcfg source tree.",
-      "mode": "view"
-    },
-    {
-      "name": "show-status",
-      "title": "Show Status",
-      "description": "Show the install state of every item across every agent target.",
+      "name": "manage-items",
+      "title": "Manage Items",
+      "description": "Browse items, see per-target install state, and toggle, install, or sync directly.",
       "mode": "view"
     },
     {
