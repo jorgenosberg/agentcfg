@@ -226,7 +226,7 @@ export default function ManageItems() {
                       {target === "all" && group.entries.length > 1 && (
                         <ActionPanel.Submenu
                           icon={Icon.Switch}
-                          title="Toggle on Target"
+                          title="Toggle on Target…"
                           shortcut={{ modifiers: ["cmd", "shift"], key: "t" }}
                         >
                           {group.entries.map((e) => (
