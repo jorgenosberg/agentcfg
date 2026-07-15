@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="agentcfg logo" width="128">
+</p>
+
 # agentcfg
 
 Sync skills, hooks, and instruction files (CLAUDE.md, AGENTS.md, etc.)
