@@ -1,4 +1,14 @@
-import { Action, ActionPanel, Color, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Color,
+  Icon,
+  Keyboard,
+  List,
+  openExtensionPreferences,
+  showToast,
+  Toast,
+} from "@raycast/api";
 import { showFailureToast, useExec } from "@raycast/utils";
 import { useMemo, useState } from "react";
 import { parseJsonOutput, resolveBinary, runAgentcfg, type StatusEntry } from "./lib/agentcfg";
@@ -53,9 +63,10 @@ export default function ManageItems() {
   const bin = resolveBinary();
   const [target, setTarget] = useState<string>("all");
   const [showDetail, setShowDetail] = useState(false);
-  const { data, isLoading, revalidate } = useExec(bin ?? "", ["status", "--json"], {
+  const { data, isLoading, error, revalidate } = useExec(bin ?? "", ["status", "--json"], {
     execute: !!bin,
     parseOutput: (out) => parseJsonOutput<StatusEntry[]>(out),
+    onError: async () => {},
   });
 
   const targets = useMemo(() => [...new Set(data?.map((e) => e.target))].sort(), [data]);
@@ -78,6 +89,33 @@ export default function ManageItems() {
           icon={Icon.Warning}
           title="agentcfg binary not found"
           description="Install it with brew, or set its path in the extension preferences (⌘,)."
+          actions={
+            <ActionPanel>
+              <Action.CopyToClipboard title="Copy Install Command" content="brew install jorgenosberg/tap/agentcfg" />
+              <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
+            </ActionPanel>
+          }
+        />
+      </List>
+    );
+  }
+
+  if (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const needsInit = message.includes("no config found");
+    return (
+      <List>
+        <List.EmptyView
+          icon={Icon.Warning}
+          title={needsInit ? "agentcfg is not initialized" : "Could not load status"}
+          description={needsInit ? "Run agentcfg init in a terminal to bootstrap, then retry." : message}
+          actions={
+            <ActionPanel>
+              {needsInit && <Action.CopyToClipboard title="Copy Init Command" content="agentcfg init" />}
+              <Action title="Retry" icon={Icon.ArrowClockwise} onAction={revalidate} />
+              <Action title="Open Extension Preferences" icon={Icon.Gear} onAction={openExtensionPreferences} />
+            </ActionPanel>
+          }
         />
       </List>
     );
