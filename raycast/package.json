@@ -48,7 +48,6 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
   },
-  "packageManager": "pnpm@10.34.1",
   "scripts": {
     "build": "ray build",
     "dev": "ray develop",
