@@ -25,17 +25,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          # The site's package.json (and its packageManager pin) lives in
-          # docs/, not the repo root where the action looks by default.
-          package_json_file: docs/package.json
-
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: docs/.nvmrc
-          cache: pnpm
-          cache-dependency-path: docs/pnpm-lock.yaml
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
 
       # Deliberately not path-filtered to docs/**: the CLI reference below is
       # generated from Go source, so a Go-only change (new flag, renamed
@@ -47,10 +41,10 @@ jobs:
         run: make check-docs
 
       - name: Install site dependencies
-        run: pnpm install --frozen-lockfile --dir docs
+        run: npm ci --prefix docs
 
       - name: Build site
-        run: pnpm --dir docs run build
+        run: npm run build --prefix docs
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
