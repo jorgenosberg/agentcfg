@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.0](https://github.com/jorgenosberg/agentcfg/compare/v0.2.0...v0.3.0) (2026-07-16)
+
+
+### Features
+
+* **cli:** add --json output to list and status ([5b1a737](https://github.com/jorgenosberg/agentcfg/commit/5b1a73744f2fa0533efb8f6aced6e971ff913a53))
+* **cli:** include source path in status --json entries ([1cd26f0](https://github.com/jorgenosberg/agentcfg/commit/1cd26f0eaff6be887788f1231a54175e3e292fe9))
+* **cli:** report errors as JSON on stderr in --json mode ([ee7cc2b](https://github.com/jorgenosberg/agentcfg/commit/ee7cc2bb5566c373346c62d97275d5c455e63c41))
+* **fork:** support forking a plugin into multiple Claude Code homes ([da88433](https://github.com/jorgenosberg/agentcfg/commit/da88433c52d17464867f769b5d081f9670606471))
+
+
+### Bug Fixes
+
+* **cli:** resolve -t by exact target name before group alias ([f08bff4](https://github.com/jorgenosberg/agentcfg/commit/f08bff4f010fce333a4614714c801c9410d93d0b))
+* **cli:** update fork test fixture to plain-string hooks catalog entries ([ece243d](https://github.com/jorgenosberg/agentcfg/commit/ece243d46849a261ce642c8f61cde2a84a176a5a))
+* **plugins:** parse hooks catalog entries as plain strings too ([2f967bf](https://github.com/jorgenosberg/agentcfg/commit/2f967bfe59a88a1443f95e032ad462b5d73a7689))
+* **plugins:** parse mcpServers/lspServers catalog entries as plain strings ([23899b3](https://github.com/jorgenosberg/agentcfg/commit/23899b346d248d8d47e84b3a512a83508eb18572))
+* **sync:** tolerate dangling symlinks when copying a directory tree ([18f6715](https://github.com/jorgenosberg/agentcfg/commit/18f6715f66fffacfcba346e0dcc5356d5c2ddae6))
+
 ## [0.2.0](https://github.com/jorgenosberg/agentcfg/compare/v0.1.1...v0.2.0) (2026-07-03)
 
 
