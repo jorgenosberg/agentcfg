@@ -103,6 +103,27 @@ func TestSupportsKindRule(t *testing.T) {
 	}
 }
 
+func TestExtensionSubdirs(t *testing.T) {
+	opencode := config.Target{Name: "opencode", Path: "/tmp/opencode", Agent: "opencode"}
+	if !opencode.SupportsKind(source.KindExtension) {
+		t.Error("opencode profile should support extensions")
+	}
+	if got := opencode.SubdirFor(source.KindExtension); got != "plugins" {
+		t.Errorf("opencode extension subdir: want %q got %q", "plugins", got)
+	}
+
+	pi := config.Target{Name: "pi", Path: "/tmp/pi", Agent: "pi"}
+	if !pi.SupportsKind(source.KindExtension) {
+		t.Error("pi profile should support extensions")
+	}
+	if got := pi.SubdirFor(source.KindExtension); got != "extensions" {
+		t.Errorf("pi extension subdir: want %q got %q", "extensions", got)
+	}
+	if got := pi.SubdirFor(source.KindCommand); got != "prompts" {
+		t.Errorf("pi command subdir: want %q got %q", "prompts", got)
+	}
+}
+
 func TestSubdirForCommand(t *testing.T) {
 	claude := config.Target{Name: "claude", Path: "/tmp/claude", Agent: "claude"}
 	if got := claude.SubdirFor(source.KindCommand); got != "commands" {

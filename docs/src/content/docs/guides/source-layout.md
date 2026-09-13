@@ -9,6 +9,8 @@ description: How the agentcfg source tree is organized and how to point it elsew
   hooks/<name>.sh            # shared hooks
   context/CLAUDE.md          # shared instruction files
   context/AGENTS.md
+  commands/<name>.md         # slash commands and prompt templates
+  extensions/<name>          # local plugins/extensions, as files or directories
 ```
 
 Source path is configurable. Default: `~/.agentcfg/source/`. Point at any existing directory via `agentcfg init --source PATH` or by editing `~/.agentcfg/config.json`.

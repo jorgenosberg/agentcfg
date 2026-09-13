@@ -54,7 +54,7 @@ agentcfg install obsidian-cli -t claude
 ## Discovery and import
 
 agentcfg ships a built-in catalog of known AI agent install directories:
-`~/.claude`, `~/.codex`, `~/.copilot`, `~/.gemini` (which is also for new Antigravity CLI), `~/.config/opencode`,
+`~/.claude`, `~/.codex`, `~/.copilot`, `~/.gemini` (which is also for new Antigravity CLI), `~/.config/opencode`, `~/.pi/agent`,
 `~/.agents`. Discovery is opt-in:
 
 - `init` does not scan anywhere outside the source directory.
@@ -73,6 +73,8 @@ source tree, so they become the single source of truth.
   hooks/<name>.sh            # shared hooks
   context/CLAUDE.md          # shared instruction files
   context/AGENTS.md
+  commands/<name>.md         # slash commands and prompt templates
+  extensions/<name>          # local plugins/extensions, as files or directories
 ```
 
 Source path is configurable. Default: `~/.agentcfg/source/`. Point at any

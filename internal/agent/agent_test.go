@@ -40,7 +40,7 @@ func TestNamesSorted(t *testing.T) {
 }
 
 func TestNamesContainsAll(t *testing.T) {
-	expected := []string{"aider", "agents", "cline", "claude", "codex", "copilot", "cursor", "gemini", "opencode", "windsurf"}
+	expected := []string{"aider", "agents", "cline", "claude", "codex", "copilot", "cursor", "gemini", "opencode", "pi", "windsurf"}
 	names := agent.Names()
 	got := make(map[string]bool, len(names))
 	for _, n := range names {
@@ -55,11 +55,12 @@ func TestNamesContainsAll(t *testing.T) {
 
 func TestProfileConsistency(t *testing.T) {
 	validKinds := map[string]bool{
-		source.KindSkill:   true,
-		source.KindHook:    true,
-		source.KindContext: true,
-		source.KindCommand: true,
-		source.KindRule:    true,
+		source.KindSkill:     true,
+		source.KindHook:      true,
+		source.KindContext:   true,
+		source.KindCommand:   true,
+		source.KindRule:      true,
+		source.KindExtension: true,
 	}
 	for _, name := range agent.Names() {
 		p, _ := agent.Get(name)

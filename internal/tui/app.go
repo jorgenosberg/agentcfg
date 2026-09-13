@@ -287,7 +287,7 @@ func (m model) adjustOffset() model {
 	return m
 }
 
-var kindCycle = []string{"", source.KindSkill, source.KindHook, source.KindContext}
+var kindCycle = []string{"", source.KindSkill, source.KindHook, source.KindContext, source.KindExtension}
 
 func nextKind(current string) string {
 	for i, k := range kindCycle {
@@ -719,6 +719,7 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 			{source.KindSkill, "skills"},
 			{source.KindHook, "hooks"},
 			{source.KindContext, "context"},
+			{source.KindExtension, "extensions"},
 		}
 		kindFocused := m.filterFocus == focusKind
 		kindDimmed := m.filterFocus == focusTarget

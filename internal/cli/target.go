@@ -111,7 +111,7 @@ func newTargetAddCmd(load func() (config.Config, error), pathOf func() (string, 
 		},
 	}
 	c.Flags().StringVar(&strategy, "strategy", "", "link or copy (default: config default)")
-	c.Flags().StringVar(&agentType, "agent", "", "agent type profile: claude, codex, copilot, gemini, cursor, cline, windsurf, aider, agents, opencode")
+	c.Flags().StringVar(&agentType, "agent", "", "agent type profile: claude, codex, copilot, gemini, cursor, cline, windsurf, aider, agents, opencode, pi")
 	c.Flags().StringVar(&alias, "alias", "", "group alias (e.g. 'claude' to group multiple Claude targets together)")
 	return c
 }

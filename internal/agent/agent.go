@@ -27,6 +27,7 @@ const (
 	Aider    = "aider"
 	Agents   = "agents"
 	Opencode = "opencode"
+	Pi       = "pi"
 )
 
 var profiles = map[string]Profile{
@@ -72,8 +73,12 @@ var profiles = map[string]Profile{
 		SupportedKinds: []string{source.KindSkill, source.KindContext},
 	},
 	Opencode: {
-		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: ""},
-		SupportedKinds: []string{source.KindSkill, source.KindContext},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: "", source.KindExtension: "plugins"},
+		SupportedKinds: []string{source.KindSkill, source.KindContext, source.KindExtension},
+	},
+	Pi: {
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindCommand: "prompts", source.KindExtension: "extensions"},
+		SupportedKinds: []string{source.KindSkill, source.KindCommand, source.KindExtension},
 	},
 }
 
