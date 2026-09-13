@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jorgenosberg/agentcfg/internal/catalog"
+	"github.com/jorgenosberg/agentcfg/internal/source"
 )
 
 func TestKnownAgentsHaveAgentField(t *testing.T) {
@@ -22,6 +23,39 @@ func TestKnownAgentsHaveAliasMatchingAgent(t *testing.T) {
 		if a.Alias != a.Agent {
 			t.Errorf("KnownAgents: target %q has Alias=%q, want %q", a.Name, a.Alias, a.Agent)
 		}
+	}
+}
+
+func TestKnownAgentResourceSubdirs(t *testing.T) {
+	want := map[string]map[string]string{
+		"copilot": {
+			source.KindSkill: "skills",
+		},
+		"opencode": {
+			source.KindSkill:     "skills",
+			source.KindExtension: "plugins",
+		},
+		"pi": {
+			source.KindSkill:     "skills",
+			source.KindCommand:   "prompts",
+			source.KindExtension: "extensions",
+		},
+	}
+
+	for _, target := range catalog.KnownAgents() {
+		expected, ok := want[target.Name]
+		if !ok {
+			continue
+		}
+		for kind, subdir := range expected {
+			if got := target.Subdirs[kind]; got != subdir {
+				t.Errorf("%s %s subdir: want %q got %q", target.Name, kind, subdir, got)
+			}
+		}
+		delete(want, target.Name)
+	}
+	for name := range want {
+		t.Errorf("missing catalog target %q", name)
 	}
 }
 

@@ -13,7 +13,7 @@ agentcfg target add <name> <path> [flags]
 ## Options
 
 ```
-      --agent string      agent type profile: claude, codex, copilot, gemini, cursor, cline, windsurf, aider, agents, opencode
+      --agent string      agent type profile: claude, codex, copilot, gemini, cursor, cline, windsurf, aider, agents, opencode, pi
       --alias string      group alias (e.g. 'claude' to group multiple Claude targets together)
   -h, --help              help for add
       --strategy string   link or copy (default: config default)

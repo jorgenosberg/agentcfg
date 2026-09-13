@@ -9,11 +9,12 @@ import (
 )
 
 const (
-	KindSkill   = "skill"
-	KindHook    = "hook"
-	KindContext = "context"
-	KindCommand = "command" // agent-specific slash commands / prompt files
-	KindRule    = "rule"    // agent-specific rule files (.cursorrules, etc.)
+	KindSkill     = "skill"
+	KindHook      = "hook"
+	KindContext   = "context"
+	KindCommand   = "command"   // agent-specific slash commands / prompt files
+	KindRule      = "rule"      // agent-specific rule files (.cursorrules, etc.)
+	KindExtension = "extension" // executable agent extensions/plugins; may be files or directories
 )
 
 // Item is one syncable entry in a tree (source or target).
@@ -30,29 +31,32 @@ type Subdirs map[string]string
 
 // DefaultSubdirs is the layout used by an agentcfg source tree.
 var DefaultSubdirs = Subdirs{
-	KindSkill:   "skills",
-	KindHook:    "hooks",
-	KindContext: "context",
-	KindCommand: "commands",
-	KindRule:    "rules",
+	KindSkill:     "skills",
+	KindHook:      "hooks",
+	KindContext:   "context",
+	KindCommand:   "commands",
+	KindRule:      "rules",
+	KindExtension: "extensions",
 }
 
 // kindDesc describes how a Kind is scanned within ScanWith.
 type kindDesc struct {
-	isDir       bool // entries are directories (skills) or files (everything else)
+	isDir       bool // require entries to be directories
 	needsSubdir bool // skip when subdir is "" (hooks and commands require an explicit subdir)
 	mdOnly      bool // when scanning root (subdir=""), limit to .md/.markdown files (context)
 	includeDots bool // include dotfile entries (rule files like .cursorrules are dotfiles)
+	allowDirs   bool // accept both files and directories (extensions/plugins)
 }
 
 // kindDescs maps each known Kind to its scan descriptor.
 // Unknown kinds appearing in a Subdirs map are silently skipped.
 var kindDescs = map[string]kindDesc{
-	KindSkill:   {isDir: true, needsSubdir: true},
-	KindHook:    {isDir: false, needsSubdir: true},
-	KindContext: {isDir: false, mdOnly: true},
-	KindCommand: {isDir: false, needsSubdir: true},
-	KindRule:    {isDir: false, includeDots: true},
+	KindSkill:     {isDir: true, needsSubdir: true},
+	KindHook:      {isDir: false, needsSubdir: true},
+	KindContext:   {isDir: false, mdOnly: true},
+	KindCommand:   {isDir: false, needsSubdir: true},
+	KindRule:      {isDir: false, includeDots: true},
+	KindExtension: {needsSubdir: true, allowDirs: true},
 }
 
 // Scan walks a tree using DefaultSubdirs.
@@ -67,7 +71,8 @@ func Scan(root string) ([]Item, error) {
 //   - hook:    subdir required; entries are files.
 //   - context: subdir may be empty (scan root, .md files only) or a named dir.
 //   - command: subdir required; entries are files.
-//   - rule:    subdir may be empty (scan root, all non-hidden files) or a named dir.
+//   - rule:     subdir may be empty (scan root, all non-hidden files) or a named dir.
+//   - extension: subdir required; entries may be files or directories.
 func ScanWith(root string, sd Subdirs) ([]Item, error) {
 	if _, err := os.Stat(root); err != nil {
 		if os.IsNotExist(err) {
@@ -111,7 +116,7 @@ func ScanWith(root string, sd Subdirs) ([]Item, error) {
 					continue
 				}
 			} else {
-				if fi.IsDir() {
+				if fi.IsDir() && !desc.allowDirs {
 					continue
 				}
 				if rootScan && desc.mdOnly && !isMarkdown(e.Name()) {
@@ -143,7 +148,7 @@ func isMarkdown(name string) bool {
 type ProjectItem struct {
 	Project string // user-assigned project name
 	Agent   string // which agent this belongs to: "claude", "copilot", etc.
-	Kind    string // KindContext / KindSkill / KindHook / KindCommand / KindRule
+	Kind    string // KindContext / KindSkill / KindHook / KindCommand / KindRule / KindExtension
 	Name    string // display name (basename or directory entry name)
 	Path    string // absolute path on disk
 	RelPath string // path relative to the project root
@@ -169,6 +174,15 @@ var projectRules = []projectScanRule{
 	// GitHub Copilot
 	{agent: "copilot", kind: KindContext, relPath: ".github/copilot-instructions.md"},
 	{agent: "copilot", kind: KindCommand, relPath: ".github/prompts", isDir: true},
+
+	// OpenCode
+	{agent: "opencode", kind: KindSkill, relPath: ".opencode/skills", isDir: true},
+	{agent: "opencode", kind: KindExtension, relPath: ".opencode/plugins", isDir: true},
+
+	// Pi
+	{agent: "pi", kind: KindSkill, relPath: ".pi/skills", isDir: true},
+	{agent: "pi", kind: KindCommand, relPath: ".pi/prompts", isDir: true},
+	{agent: "pi", kind: KindExtension, relPath: ".pi/extensions", isDir: true},
 
 	// Codex CLI / opencode / agents (shared AGENTS.md format)
 	{agent: "agents", kind: KindContext, relPath: "AGENTS.md"},

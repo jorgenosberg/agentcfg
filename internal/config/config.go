@@ -26,7 +26,7 @@ const (
 //   - "copy" — snapshots source into the target. Safe with any agent but
 //     requires re-sync after source edits.
 type Config struct {
-	// Source is the root directory holding skills/, hooks/, context/.
+	// Source is the root directory holding skills, hooks, context, and other resources.
 	Source string `json:"source"`
 	// DefaultStrategy is applied to targets that do not override it.
 	DefaultStrategy string `json:"default_strategy"`
@@ -128,11 +128,12 @@ func (t Target) SubdirFor(kind string) string {
 }
 
 var defaultSubdirs = map[string]string{
-	source.KindSkill:   "skills",
-	source.KindHook:    "hooks",
-	source.KindContext: "",
-	source.KindCommand: "commands",
-	source.KindRule:    "rules",
+	source.KindSkill:     "skills",
+	source.KindHook:      "hooks",
+	source.KindContext:   "",
+	source.KindCommand:   "commands",
+	source.KindRule:      "rules",
+	source.KindExtension: "extensions",
 }
 
 // DestNameFor returns the filename to use when installing an item of the given

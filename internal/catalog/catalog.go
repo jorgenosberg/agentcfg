@@ -7,12 +7,13 @@
 //   - Claude Code:    ~/.claude           (skills/, hooks/, CLAUDE.md)
 //   - Codex CLI:      ~/.codex            (AGENTS.md, AGENTS.override.md)
 //     user-level skills go to ~/.agents/skills/ — covered by the agents entry
-//   - Copilot CLI:    ~/.copilot          (copilot-instructions.md)
+//   - Copilot CLI:    ~/.copilot          (skills/, copilot-instructions.md)
 //   - Antigravity CLI (fka Gemini CLI):
 //     ~/.gemini           (GEMINI.md — global context, unchanged from Gemini CLI)
 //     ~/.gemini/antigravity-cli/skills/  (user-level skills; was ~/.gemini/skills/)
 //     workspace skills:   .agents/skills/ — covered by the agents entry
-//   - opencode:       ~/.config/opencode  (skills/, AGENTS.md)
+//   - opencode:       ~/.config/opencode  (skills/, plugins/, AGENTS.md)
+//   - Pi:             ~/.pi/agent         (skills/, extensions/, prompts/)
 //   - agents:         ~/.agents           (skills/, AGENTS.md) — shared by Codex, Antigravity, opencode
 package catalog
 
@@ -63,6 +64,7 @@ func KnownAgents() []config.Target {
 			Agent: "copilot",
 			Alias: "copilot",
 			Subdirs: map[string]string{
+				source.KindSkill:   "skills",
 				source.KindContext: "",
 			},
 		},
@@ -82,8 +84,20 @@ func KnownAgents() []config.Target {
 			Agent: "opencode",
 			Alias: "opencode",
 			Subdirs: map[string]string{
-				source.KindSkill:   "skills",
-				source.KindContext: "",
+				source.KindSkill:     "skills",
+				source.KindContext:   "",
+				source.KindExtension: "plugins",
+			},
+		},
+		{
+			Name:  "pi",
+			Path:  filepath.Join(home, ".pi", "agent"),
+			Agent: "pi",
+			Alias: "pi",
+			Subdirs: map[string]string{
+				source.KindSkill:     "skills",
+				source.KindCommand:   "prompts",
+				source.KindExtension: "extensions",
 			},
 		},
 		{

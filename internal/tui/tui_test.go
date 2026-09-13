@@ -26,7 +26,8 @@ func TestNextKind(t *testing.T) {
 		{"", source.KindSkill},
 		{source.KindSkill, source.KindHook},
 		{source.KindHook, source.KindContext},
-		{source.KindContext, ""},
+		{source.KindContext, source.KindExtension},
+		{source.KindExtension, ""},
 	}
 	for _, c := range cases {
 		if got := nextKind(c.in); got != c.want {
@@ -37,8 +38,8 @@ func TestNextKind(t *testing.T) {
 
 func TestPrevKind(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"", source.KindContext},
-		{source.KindContext, source.KindHook},
+		{"", source.KindExtension},
+		{source.KindExtension, source.KindContext},
 		{source.KindHook, source.KindSkill},
 		{source.KindSkill, ""},
 	}

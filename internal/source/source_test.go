@@ -233,6 +233,31 @@ func TestScanCommandsRequiresSubdir(t *testing.T) {
 	}
 }
 
+func TestScanExtensionsAcceptsFilesAndDirectories(t *testing.T) {
+	root := t.TempDir()
+	mkfile(t, filepath.Join(root, "extensions", "notify.ts"), "export default {}")
+	mkdir(t, filepath.Join(root, "extensions", "review"))
+	mkfile(t, filepath.Join(root, "extensions", ".hidden.ts"), "")
+
+	items, err := source.Scan(root)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var extensions []source.Item
+	for _, it := range items {
+		if it.Kind == source.KindExtension {
+			extensions = append(extensions, it)
+		}
+	}
+	if len(extensions) != 2 {
+		t.Fatalf("expected 2 extensions, got %d: %v", len(extensions), extensions)
+	}
+	if extensions[0].Name != "notify.ts" || extensions[1].Name != "review" {
+		t.Errorf("unexpected extension names: %v", []string{extensions[0].Name, extensions[1].Name})
+	}
+}
+
 func TestScanRules(t *testing.T) {
 	root := t.TempDir()
 	mkfile(t, filepath.Join(root, "rules", "typescript.md"), "# ts rules")
@@ -356,5 +381,38 @@ func TestScanProjectMultipleAgents(t *testing.T) {
 		if !agents[want] {
 			t.Errorf("expected agent %q in project items", want)
 		}
+	}
+}
+
+func TestScanProjectOpenCodeAndPiResources(t *testing.T) {
+	root := t.TempDir()
+	mkdir(t, filepath.Join(root, ".opencode", "skills", "review"))
+	mkfile(t, filepath.Join(root, ".opencode", "plugins", "notify.ts"), "")
+	mkdir(t, filepath.Join(root, ".pi", "skills", "deploy"))
+	mkfile(t, filepath.Join(root, ".pi", "extensions", "tools.ts"), "")
+	mkfile(t, filepath.Join(root, ".pi", "prompts", "release.md"), "")
+
+	items, err := source.ScanProject(root, "resources")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := map[string]string{
+		filepath.Join(".opencode", "skills", "review"):     source.KindSkill,
+		filepath.Join(".opencode", "plugins", "notify.ts"): source.KindExtension,
+		filepath.Join(".pi", "skills", "deploy"):           source.KindSkill,
+		filepath.Join(".pi", "extensions", "tools.ts"):     source.KindExtension,
+		filepath.Join(".pi", "prompts", "release.md"):      source.KindCommand,
+	}
+	for _, it := range items {
+		if kind, ok := want[it.RelPath]; ok {
+			if it.Kind != kind {
+				t.Errorf("%s: want kind %q got %q", it.RelPath, kind, it.Kind)
+			}
+			delete(want, it.RelPath)
+		}
+	}
+	for path := range want {
+		t.Errorf("missing project item %s", path)
 	}
 }
