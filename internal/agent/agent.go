@@ -39,8 +39,8 @@ var profiles = map[string]Profile{
 		SupportedKinds: []string{source.KindSkill, source.KindContext},
 	},
 	Copilot: {
-		Subdirs:        map[string]string{source.KindContext: "", source.KindCommand: ".github/prompts"},
-		SupportedKinds: []string{source.KindContext, source.KindCommand},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: "", source.KindCommand: ".github/prompts"},
+		SupportedKinds: []string{source.KindSkill, source.KindContext, source.KindCommand},
 	},
 	Gemini: {
 		Subdirs:        map[string]string{source.KindContext: ""},
