@@ -54,7 +54,15 @@ func NewRoot() *cobra.Command {
 		return config.DefaultPath()
 	}
 
+	root.RunE = func(cmd *cobra.Command, _ []string) error {
+		if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
+			return cmd.Help()
+		}
+		return runTUI(resolveCfg, resolvePath)
+	}
+
 	root.AddCommand(
+		newTUICmd(resolveCfg, resolvePath),
 		newListCmd(resolveCfg),
 		newStatusCmd(resolveCfg),
 		newInstallCmd(resolveCfg),

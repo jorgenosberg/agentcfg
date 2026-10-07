@@ -12,6 +12,10 @@ agentcfg keeps a single source-of-truth directory in sync with one or more AI co
 
 Set AGENTCFG_HOME to any directory to run in an isolated sandbox — all reads and writes (state, catalog, Claude plugin files) go there instead of the real $HOME.
 
+```
+agentcfg [flags]
+```
+
 ## Options
 
 ```
@@ -34,6 +38,7 @@ Set AGENTCFG_HOME to any directory to run in an isolated sandbox — all reads a
 * [agentcfg sync](../agentcfg_sync/)	 - Install all absent and drifted items across all targets
 * [agentcfg target](../agentcfg_target/)	 - Manage sync targets
 * [agentcfg toggle](../agentcfg_toggle/)	 - Enable or disable an item for one or more targets
+* [agentcfg tui](../agentcfg_tui/)	 - Open the interactive TUI (default when run with no arguments in a terminal)
 * [agentcfg uninstall](../agentcfg_uninstall/)	 - Remove an item from one or more targets
 * [agentcfg unmanage](../agentcfg_unmanage/)	 - Return an item to the target dir as a real file and stop managing it
 * [agentcfg version](../agentcfg_version/)	 - Manage saved versions of source items

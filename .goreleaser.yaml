@@ -20,37 +20,11 @@ builds:
       - -X github.com/jorgenosberg/agentcfg/internal/version.Commit={{.Commit}}
       - -X github.com/jorgenosberg/agentcfg/internal/version.Date={{.Date}}
 
-  - id: lazyagentcfg
-    main: ./cmd/lazyagentcfg
-    binary: lazyagentcfg
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-      - -X github.com/jorgenosberg/agentcfg/internal/version.Version={{.Version}}
-      - -X github.com/jorgenosberg/agentcfg/internal/version.Commit={{.Commit}}
-      - -X github.com/jorgenosberg/agentcfg/internal/version.Date={{.Date}}
-
 archives:
   - id: agentcfg-archive
     ids:
       - agentcfg
     name_template: "agentcfg_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
-    files:
-      - README.md
-      - LICENSE
-
-  - id: lazyagentcfg-archive
-    ids:
-      - lazyagentcfg
-    name_template: "lazyagentcfg_{{ .Os }}_{{ .Arch }}"
     format: tar.gz
     files:
       - README.md
@@ -86,23 +60,3 @@ brews:
       bin.install "agentcfg"
     test: |
       system "#{bin}/agentcfg", "--version"
-
-  - name: lazyagentcfg
-    ids:
-      - lazyagentcfg-archive
-    repository:
-      owner: jorgenosberg
-      name: homebrew-tap
-      branch: main
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
-    homepage: https://github.com/jorgenosberg/agentcfg
-    description: Interactive TUI for managing AI coding agent configurations (lazygit-style).
-    license: MIT
-    commit_author:
-      name: Jørgen Andresen Osberg
-      email: jorgen.osberg@gmail.com
-    install: |
-      bin.install "lazyagentcfg"
-    test: |
-      system "#{bin}/lazyagentcfg", "--version"

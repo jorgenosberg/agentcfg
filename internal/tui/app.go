@@ -1334,7 +1334,7 @@ func paletteHintKey() string {
 func (m model) renderFooter(w int) string {
 	var left string
 	if m.status == "ready" {
-		left = dimStyle.Render(" lazyagentcfg " + version.Version)
+		left = dimStyle.Render(" agentcfg " + version.Version)
 	} else {
 		left = statusStyle.Render(" " + m.status)
 	}
