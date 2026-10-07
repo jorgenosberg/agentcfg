@@ -16,7 +16,7 @@ Or run directly:
 
 ```sh
 AGENTCFG_HOME=/tmp/agentcfg-test agentcfg init
-AGENTCFG_HOME=/tmp/agentcfg-test lazyagentcfg
+AGENTCFG_HOME=/tmp/agentcfg-test agentcfg
 ```
 
 To exercise discover/sync with fake agent dirs, create them inside the sandbox home:

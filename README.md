@@ -10,25 +10,18 @@ tree. Based on the idea that most AI agent configs are just plain files, at leas
 
 Created because I have personally had multiple Claude accounts enabled on the same machine, a Codex account, an OpenCode installation etc., all at the same time, and wanted an easier way to copy and export my setup between agents.
 
-Two binaries:
-
-- `agentcfg` — CLI.
-- `lazyagentcfg` — interactive TUI (lazygit-style).
+One binary. Run `agentcfg` with no arguments in a terminal to open the interactive TUI (or `agentcfg tui`). Any subcommand runs as a scriptable CLI.
 
 ## Install
 
-Install the CLI, the TUI, or both:
-
 ```sh
-brew install jorgenosberg/tap/agentcfg       # CLI
-brew install jorgenosberg/tap/lazyagentcfg   # TUI
+brew install jorgenosberg/tap/agentcfg
 ```
 
 Or with Go:
 
 ```sh
 go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest
-go install github.com/jorgenosberg/agentcfg/cmd/lazyagentcfg@latest
 ```
 
 Go installs and source builds require Go `1.24` or newer. Or clone and run
@@ -114,7 +107,7 @@ Or run directly:
 
 ```sh
 AGENTCFG_HOME=/tmp/agentcfg-test agentcfg init
-AGENTCFG_HOME=/tmp/agentcfg-test lazyagentcfg
+AGENTCFG_HOME=/tmp/agentcfg-test agentcfg
 ```
 
 To exercise discover/sync with fake agent dirs, create them inside the sandbox home:

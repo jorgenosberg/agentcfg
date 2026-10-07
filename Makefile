@@ -16,31 +16,27 @@ LDFLAGS := -s -w \
 
 SANDBOX ?= $(CURDIR)/.sandbox
 
-.PHONY: all build agentcfg lazyagentcfg install uninstall \
+.PHONY: all build agentcfg install uninstall \
         check test vet lint fmt tidy clean run-tui watch \
         sandbox sandbox-cli sandbox-reset gen-docs check-docs
 
 all: build
 
-## build: compile both binaries into ./bin/
-build: agentcfg lazyagentcfg
+## build: compile the binary into ./bin/
+build: agentcfg
 
 agentcfg:
 	@mkdir -p $(BINDIR)
 	go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/agentcfg ./cmd/agentcfg
 
-lazyagentcfg:
-	@mkdir -p $(BINDIR)
-	go build -ldflags "$(LDFLAGS)" -o $(BINDIR)/lazyagentcfg ./cmd/lazyagentcfg
-
-## install: build and install both binaries to $(GOBIN)
+## install: build and install the binary to $(GOBIN)
 install:
-	go install -ldflags "$(LDFLAGS)" ./cmd/agentcfg ./cmd/lazyagentcfg
+	go install -ldflags "$(LDFLAGS)" ./cmd/agentcfg
 	@echo "installed to $(GOBIN)"
 
-## uninstall: remove installed binaries from $(GOBIN)
+## uninstall: remove the installed binary from $(GOBIN)
 uninstall:
-	rm -f $(GOBIN)/agentcfg $(GOBIN)/lazyagentcfg
+	rm -f $(GOBIN)/agentcfg
 
 ## check: run vet and tests (CI gate)
 check: vet test
@@ -82,8 +78,8 @@ clean:
 	rm -rf $(BINDIR) dist
 
 ## run-tui: build and launch the TUI
-run-tui: lazyagentcfg
-	./$(BINDIR)/lazyagentcfg
+run-tui: agentcfg
+	./$(BINDIR)/agentcfg tui
 
 ## watch: rebuild and relaunch the TUI on every .go change (requires watchexec)
 watch:
@@ -96,7 +92,7 @@ watch:
 sandbox: build
 	@mkdir -p "$(SANDBOX)"
 	@echo "sandbox home: $(SANDBOX)"
-	AGENTCFG_HOME="$(SANDBOX)" ./$(BINDIR)/lazyagentcfg
+	AGENTCFG_HOME="$(SANDBOX)" ./$(BINDIR)/agentcfg tui
 
 ## sandbox-cli: run a CLI command against the sandbox; e.g. make sandbox-cli ARGS="discover"
 sandbox-cli: build
