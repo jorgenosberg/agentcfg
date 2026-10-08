@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
@@ -46,6 +47,10 @@ func readPreview(path string, isDir bool, maxLines, maxWidth int) []string {
 	}
 	if bytes.IndexByte(check, 0) >= 0 {
 		return []string{dimStyle.Render("  [binary file]")}
+	}
+
+	if strings.EqualFold(filepath.Base(path), "README.md") {
+		data = cleanReadme(data)
 	}
 
 	if lines := syntaxHighlight(path, data, maxLines, maxWidth); lines != nil {
@@ -143,4 +148,76 @@ func syntaxHighlight(path string, data []byte, maxLines, maxWidth int) []string 
 		return nil
 	}
 	return highlightBlock(lexer, data, maxLines, maxWidth)
+}
+
+var treeDirStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("110"))
+
+// renderTree draws root's contents as a connector tree, dirs first, up to maxDepth levels.
+func renderTree(root string, maxDepth int) []string {
+	var lines []string
+	var walk func(dir, prefix string, depth int)
+	walk = func(dir, prefix string, depth int) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		visible := entries[:0:0]
+		for _, e := range entries {
+			if n := e.Name(); strings.HasPrefix(n, ".") || n == "node_modules" {
+				continue
+			}
+			visible = append(visible, e)
+		}
+		sort.SliceStable(visible, func(i, j int) bool {
+			return visible[i].IsDir() && !visible[j].IsDir()
+		})
+		for i, e := range visible {
+			last := i == len(visible)-1
+			branch, next := "├── ", "│   "
+			if last {
+				branch, next = "└── ", "    "
+			}
+			name := previewStyle.Render(e.Name())
+			if e.IsDir() {
+				name = treeDirStyle.Render(e.Name() + "/")
+			}
+			lines = append(lines, " "+statusAbsentStyle.Render(prefix+branch)+name)
+			if e.IsDir() && depth < maxDepth {
+				walk(filepath.Join(dir, e.Name()), prefix+next, depth+1)
+			}
+		}
+	}
+	walk(root, "", 1)
+	return lines
+}
+
+// pluginDoc picks the most informative markdown file in a plugin dir:
+// README, then the first skill, agent, command, or root-level .md.
+func pluginDoc(root string) string {
+	readme := filepath.Join(root, "README.md")
+	if _, err := os.Stat(readme); err == nil {
+		return readme
+	}
+	if dirs, err := os.ReadDir(filepath.Join(root, "skills")); err == nil {
+		for _, d := range dirs {
+			f := filepath.Join(root, "skills", d.Name(), "SKILL.md")
+			if _, err := os.Stat(f); err == nil {
+				return f
+			}
+		}
+	}
+	for _, sub := range []string{"agents", "commands", ""} {
+		entries, err := os.ReadDir(filepath.Join(root, sub))
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			n := strings.ToLower(e.Name())
+			if e.IsDir() || !strings.HasSuffix(n, ".md") || strings.HasPrefix(n, "changelog") || strings.HasPrefix(n, "license") {
+				continue
+			}
+			return filepath.Join(root, sub, e.Name())
+		}
+	}
+	return ""
 }

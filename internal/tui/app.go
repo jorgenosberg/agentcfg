@@ -106,6 +106,8 @@ type previewMeta struct {
 	lines     int
 	chars     int
 	modTime   time.Time
+	hideStats bool
+	tree      []string
 }
 
 func newModel(cfgPath string, cfg config.Config, items []source.Item, projectItems []source.ProjectItem) model {
@@ -847,6 +849,9 @@ func renderPreviewSummary(meta previewMeta, w int) []string {
 		p(tokStr) + d(" tokens  ") +
 		p(pctStr) + d(" of 200k ctx")
 
+	if meta.hideStats {
+		return []string{line1, line2}
+	}
 	return []string{line1, line2, line3}
 }
 
@@ -868,26 +873,46 @@ func (m model) buildRightPanel(lh, rightIW int) []string {
 	padW := max(0, rightIW-lipgloss.Width(label))
 	topBorder := iR("┌") + iR("─ ") + hintKeyStyle.Render(titleText) + iR(" "+strings.Repeat("─", padW)) + iR("┐")
 
-	const summaryTotalH = 4 // 3 content lines + 1 separator
 	meta, hasMeta := m.currentPreviewMeta()
-	if lh < summaryTotalH+2 {
-		hasMeta = false
+	var summaryRows, treeRows []string
+	reserved := 0
+	if hasMeta {
+		summaryRows = renderPreviewSummary(meta, rightIW)
+		treeRows = meta.tree
+		if maxTree := max(3, lh/3); len(treeRows) > maxTree {
+			treeRows = append(append([]string{}, treeRows[:maxTree-1]...), dimStyle.Render(" …"))
+		}
+		reserved = len(summaryRows) + 1 // rows + separator
+		if len(treeRows) > 0 {
+			reserved += len(treeRows) + 1
+		}
+		if lh < reserved+2 {
+			treeRows = nil
+			reserved = len(summaryRows) + 1
+		}
+		if lh < reserved+2 {
+			hasMeta, summaryRows, reserved = false, nil, 0
+		}
 	}
 
-	previewH := lh + 1
-	if hasMeta {
-		previewH -= summaryTotalH
-	}
+	previewH := lh + 1 - reserved
 
 	previewLines := m.buildPreviewLines(previewH, rightIW)
 	bottomBorder := iR("└") + iR(strings.Repeat("─", rightIW)) + iR("┘")
 	lines := make([]string, 0, total)
 	lines = append(lines, topBorder)
 	if hasMeta {
-		for _, sl := range renderPreviewSummary(meta, rightIW) {
+		sep := iR("│") + iR(strings.Repeat("─", rightIW)) + iR("│")
+		for _, sl := range summaryRows {
 			lines = append(lines, iR("│")+padToWidth(sl, rightIW)+iR("│"))
 		}
-		lines = append(lines, iR("│")+iR(strings.Repeat("─", rightIW))+iR("│"))
+		lines = append(lines, sep)
+		if len(treeRows) > 0 {
+			for _, tl := range treeRows {
+				lines = append(lines, iR("│")+padToWidth(tl, rightIW)+iR("│"))
+			}
+			lines = append(lines, sep)
+		}
 	}
 	for _, row := range previewLines {
 		lines = append(lines, iR("│")+padToWidth(row, rightIW)+iR("│"))
@@ -1220,16 +1245,22 @@ func (m model) buildPreviewLines(lh, w int) []string {
 func (m model) currentPreviewPath() (path string, isDir bool, ok bool) {
 	switch m.mode {
 	case viewPlugins:
-		// Plugins view: preview the plugin's skill file from the cache when possible.
+		// Plugins view: first skill, else README, else first agent/command/skill/root .md (the file tree lives in the meta section).
 		if m.pluginReg == nil || m.cursor >= len(m.pluginReg.Plugins) {
 			return "", false, false
 		}
 		p := m.pluginReg.Plugins[m.cursor]
-		if p.InstallPath != "" && len(p.Skills) > 0 {
+		if p.InstallPath == "" {
+			return "", false, false
+		}
+		if len(p.Skills) > 0 {
 			skillPath := filepath.Join(p.InstallPath, "skills", p.Skills[0], "SKILL.md")
 			if _, err := os.Stat(skillPath); err == nil {
 				return skillPath, false, true
 			}
+		}
+		if doc := pluginDoc(p.InstallPath); doc != "" {
+			return doc, false, true
 		}
 		return "", false, false
 	case viewAgentcfg:
@@ -1269,6 +1300,9 @@ func (m model) currentPreviewPath() (path string, isDir bool, ok bool) {
 
 func (m model) currentPreviewMeta() (previewMeta, bool) {
 	path, isDir, ok := m.currentPreviewPath()
+	if m.mode == viewPlugins {
+		return m.pluginPreviewMeta(path, ok)
+	}
 	if !ok || isDir {
 		return previewMeta{}, false
 	}
@@ -1305,6 +1339,33 @@ func (m model) currentPreviewMeta() (previewMeta, bool) {
 	meta.lines = strings.Count(string(data), "\n")
 	if meta.chars > 0 && data[meta.chars-1] != '\n' {
 		meta.lines++
+	}
+	return meta, true
+}
+
+func (m model) pluginPreviewMeta(path string, hasFile bool) (previewMeta, bool) {
+	if m.pluginReg == nil || m.cursor >= len(m.pluginReg.Plugins) {
+		return previewMeta{}, false
+	}
+	p := m.pluginReg.Plugins[m.cursor]
+	if p.InstallPath == "" {
+		return previewMeta{}, false
+	}
+	meta := previewMeta{kind: "plugin", name: p.Name, path: p.InstallPath, hideStats: true}
+	meta.tree = renderTree(p.InstallPath, 3)
+	if info, err := os.Stat(p.InstallPath); err == nil {
+		meta.modTime = info.ModTime()
+	}
+	if hasFile {
+		meta.path = path
+		meta.hideStats = false
+		if data, err := os.ReadFile(path); err == nil {
+			meta.chars = len(data)
+			meta.lines = strings.Count(string(data), "\n")
+			if meta.chars > 0 && data[meta.chars-1] != '\n' {
+				meta.lines++
+			}
+		}
 	}
 	return meta, true
 }
