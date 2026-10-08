@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/jorgenosberg/agentcfg/internal/icons"
 )
@@ -42,6 +43,9 @@ func relativeTime(t time.Time) string {
 
 func padToWidth(s string, w int) string {
 	vis := lipgloss.Width(s)
+	if vis > w && w > 0 {
+		return ansi.Truncate(s, w, "")
+	}
 	if vis >= w {
 		return s
 	}
@@ -64,14 +68,17 @@ func truncateRunes(s string, maxR int) string {
 // symbols) don't break the full-row highlight.
 func withBg(s string) string {
 	const (
-		bg   = "\x1b[48;5;78m\x1b[30m"
+		bg   = "\x1b[48;5;238m\x1b[38;5;255m"
 		sgr0 = "\x1b[0m"
 	)
+	if strings.HasPrefix(s, " ") {
+		s = "\x1b[38;5;78m▌\x1b[38;5;255m" + s[1:]
+	}
 	return bg + strings.ReplaceAll(s, sgr0, sgr0+bg) + sgr0
 }
 
 func agentNameStyled(agent string, fieldW int) string {
-	padded := fmt.Sprintf("%-*s", fieldW, agent)
+	padded := fmt.Sprintf("%-*s", fieldW, truncateRunes(agent, fieldW))
 	hex := icons.BrandColor(agent)
 	if hex == "" {
 		return padded
