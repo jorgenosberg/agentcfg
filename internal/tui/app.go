@@ -669,8 +669,8 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 		tab("Projects", m.mode == viewProjects) + sep +
 		tab("Plugins", m.mode == viewPlugins)
 	tabsVis := lipgloss.Width(tabs)
-	padW := max(0, leftIW-tabsVis-3)
-	topBorder := aR("┌─ ") + tabs + aR(strings.Repeat("─", padW)+"─┐")
+	padW := max(0, leftIW-tabsVis-4)
+	topBorder := aR("┌─ ") + tabs + aR(" "+strings.Repeat("─", padW)+"─┐")
 
 	buildTargetFilterContent := func(current string, focused, dimmed bool) string {
 		activePill := tabActiveStyle
@@ -877,7 +877,7 @@ func (m model) buildRightPanel(lh, rightIW int) []string {
 	var summaryRows, treeRows []string
 	reserved := 0
 	if hasMeta {
-		summaryRows = renderPreviewSummary(meta, rightIW)
+		summaryRows = renderPreviewSummary(meta, rightIW-1)
 		treeRows = meta.tree
 		if maxTree := max(3, lh/3); len(treeRows) > maxTree {
 			treeRows = append(append([]string{}, treeRows[:maxTree-1]...), dimStyle.Render(" …"))
@@ -897,25 +897,25 @@ func (m model) buildRightPanel(lh, rightIW int) []string {
 
 	previewH := lh + 1 - reserved
 
-	previewLines := m.buildPreviewLines(previewH, rightIW)
+	previewLines := m.buildPreviewLines(previewH, rightIW-1)
 	bottomBorder := iR("└") + iR(strings.Repeat("─", rightIW)) + iR("┘")
 	lines := make([]string, 0, total)
 	lines = append(lines, topBorder)
 	if hasMeta {
 		sep := iR("│") + iR(strings.Repeat("─", rightIW)) + iR("│")
 		for _, sl := range summaryRows {
-			lines = append(lines, iR("│")+padToWidth(sl, rightIW)+iR("│"))
+			lines = append(lines, iR("│")+" "+padToWidth(sl, rightIW-1)+iR("│"))
 		}
 		lines = append(lines, sep)
 		if len(treeRows) > 0 {
 			for _, tl := range treeRows {
-				lines = append(lines, iR("│")+padToWidth(tl, rightIW)+iR("│"))
+				lines = append(lines, iR("│")+" "+padToWidth(tl, rightIW-1)+iR("│"))
 			}
 			lines = append(lines, sep)
 		}
 	}
 	for _, row := range previewLines {
-		lines = append(lines, iR("│")+padToWidth(row, rightIW)+iR("│"))
+		lines = append(lines, iR("│")+" "+padToWidth(row, rightIW-1)+iR("│"))
 	}
 	lines = append(lines, bottomBorder)
 	return lines
