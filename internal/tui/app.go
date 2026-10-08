@@ -550,11 +550,11 @@ var (
 	statusLinkedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("34"))
 	statusCopiedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
 	statusDriftedStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	statusAbsentStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	statusAbsentStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
 	statusUnmanagedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	statusDisabledStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Faint(true)
+	statusDisabledStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 	statusPluginOwnedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	statusPluginSiblingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Faint(true)
+	statusPluginSiblingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
 )
 
 func renderStatus(s sync.Status) string {
@@ -764,7 +764,7 @@ func (m model) buildLeftPanel(lh, leftIW int) []string {
 
 	case viewAgentFolders:
 		targetFilterRow := aR("│") + padToWidth(buildTargetFilterContent(m.targetFilter, m.filterFocus == focusTarget, false), leftIW) + aR("│")
-		headerContent := "  " + fmt.Sprintf("%-8s  %-7s  %-24s  %s", "AGENT", "TYPE", "NAME", "STATUS")
+		headerContent := "  " + fmt.Sprintf("%-*s  %-7s  %-24s  %s", m.agentColWidth(), "AGENT", "TYPE", "NAME", "STATUS")
 		headerRow := aR("│") + padToWidth(dimStyle.Render(headerContent), leftIW) + aR("│")
 		contentRows := m.buildContentRows(max(0, lh-2), leftIW)
 		lines := make([]string, 0, lh+5)
@@ -999,7 +999,7 @@ func (m model) renderBadgeCells(g groupedItem, leftIW int) string {
 		var sym string
 		var st lipgloss.Style
 		if !ok || e.Status == sync.StatusAbsent {
-			sym, st = "─", dimStyle
+			sym, st = "─", statusAbsentStyle
 		} else {
 			switch e.Status {
 			case sync.StatusLinked, sync.StatusCopied:
@@ -1021,7 +1021,7 @@ func (m model) renderBadgeCells(g groupedItem, leftIW int) string {
 			case sync.StatusPluginOwned:
 				sym, st = "↑", statusPluginOwnedStyle
 			default:
-				sym, st = "─", dimStyle
+				sym, st = "─", statusAbsentStyle
 			}
 		}
 		parts = append(parts, padToWidth(st.Render(sym), cw))
@@ -1070,6 +1070,15 @@ func (m model) buildGroupedRows(lh, leftIW int) []string {
 	return rows
 }
 
+// agentColWidth sizes the AGENT column to the longest target name (8..16).
+func (m model) agentColWidth() int {
+	w := 8
+	for _, t := range m.cfg.Targets {
+		w = max(w, len([]rune(t.Name)))
+	}
+	return min(w, 16)
+}
+
 func (m model) buildAgentFolderRows(lh, leftIW int) []string {
 	rows := make([]string, 0, lh)
 	entries := m.filteredTargetEntries()
@@ -1089,15 +1098,16 @@ func (m model) buildAgentFolderRows(lh, leftIW int) []string {
 		return rows
 	}
 
+	agentW := m.agentColWidth()
 	end := min(m.offset+lh, len(entries))
 	for i := m.offset; i < end; i++ {
 		e := entries[i]
-		styledAgent := agentNameStyled(e.Target.Name, 8)
+		styledAgent := agentNameStyled(e.Target.Name, agentW)
 		kindStr := fmt.Sprintf("%-7s", e.Item.Kind)
 		statusStr := renderStatus(e.Status)
 		statusVis := lipgloss.Width(statusStr)
-		// cursor(2) + agent(8) + "  "(2) + kind(7) + "  "(2) + name + "  "(2) + status = leftIW
-		nameMax := max(4, leftIW-2-8-2-7-2-2-statusVis)
+		// cursor(2) + agent(agentW) + "  "(2) + kind(7) + "  "(2) + name + "  "(2) + status = leftIW
+		nameMax := max(4, leftIW-2-agentW-2-7-2-2-statusVis)
 		name := padToWidth(truncateRunes(e.Item.Name, nameMax), nameMax)
 		if i == m.cursor {
 			rows = append(rows, withBg(padToWidth("  "+styledAgent+"  "+kindStr+"  "+name+"  "+statusStr, leftIW)))
