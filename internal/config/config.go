@@ -264,3 +264,36 @@ func LookupTarget(cfg Config, name string) (Target, bool) {
 	}
 	return Target{}, false
 }
+
+// LookupProject returns the configured project with the given name.
+func LookupProject(cfg Config, name string) (Project, bool) {
+	for _, p := range cfg.Projects {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return Project{}, false
+}
+
+// ProjectTarget derives an install target for one agent inside a project.
+// It is never persisted. Strategy is "copy" unless link is true: a symlink
+// into ~/.agentcfg breaks for anyone else who clones the repository.
+// The second return value is false when the agent has no project layout.
+func ProjectTarget(p Project, agentName string, link bool) (Target, bool) {
+	prof, ok := agent.Get(agentName)
+	if !ok || len(prof.ProjectSubdirs) == 0 {
+		return Target{}, false
+	}
+	strategy := StrategyCopy
+	if link {
+		strategy = StrategyLink
+	}
+	return Target{
+		Name:     p.Name + ":" + agentName,
+		Path:     p.Path,
+		Agent:    agentName,
+		Alias:    agentName,
+		Strategy: strategy,
+		Subdirs:  prof.ProjectSubdirs,
+	}, true
+}
