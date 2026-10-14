@@ -78,6 +78,7 @@ func NewRoot() *cobra.Command {
 		newDiscoverCmd(resolveCfg, resolvePath),
 		newImportCmd(resolveCfg),
 		newProjectCmd(resolveCfg, resolvePath),
+		newMoveCmd(resolveCfg, resolvePath),
 		newForkCmd(),
 	)
 	return root

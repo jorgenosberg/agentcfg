@@ -14,6 +14,10 @@ type Profile struct {
 	// Useful for agents that require a fixed filename (e.g. cursor ".cursorrules").
 	// When absent, the source item's own name is used.
 	DestName map[string]string
+	// ProjectSubdirs maps kind to the path relative to a repository root
+	// where the agent reads project-level items. A missing kind means the
+	// agent has no project-level location for it.
+	ProjectSubdirs map[string]string
 }
 
 const (
@@ -34,18 +38,23 @@ var profiles = map[string]Profile{
 	Claude: {
 		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindHook: "hooks", source.KindContext: "", source.KindCommand: "commands"},
 		SupportedKinds: []string{source.KindSkill, source.KindHook, source.KindContext, source.KindCommand},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".claude/skills", source.KindHook: ".claude/hooks", source.KindContext: "", source.KindCommand: ".claude/commands"},
 	},
 	Codex: {
 		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: ""},
 		SupportedKinds: []string{source.KindSkill, source.KindContext},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".agents/skills", source.KindContext: ""},
 	},
 	Copilot: {
 		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: "", source.KindCommand: ".github/prompts"},
 		SupportedKinds: []string{source.KindSkill, source.KindContext, source.KindCommand},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".github/skills", source.KindContext: "", source.KindCommand: ".github/prompts"},
 	},
 	Gemini: {
-		Subdirs:        map[string]string{source.KindContext: ""},
-		SupportedKinds: []string{source.KindContext},
+		// Antigravity CLI (fka Gemini CLI) keeps user skills under antigravity-cli/
+		Subdirs:        map[string]string{source.KindSkill: "antigravity-cli/skills", source.KindContext: ""},
+		SupportedKinds: []string{source.KindSkill, source.KindContext},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".agents/skills", source.KindContext: ""},
 	},
 	Cursor: {
 		// Uses the modern multi-file form: .cursor/rules/
@@ -71,14 +80,17 @@ var profiles = map[string]Profile{
 	Agents: {
 		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: ""},
 		SupportedKinds: []string{source.KindSkill, source.KindContext},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".agents/skills", source.KindContext: ""},
 	},
 	Opencode: {
 		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: "", source.KindExtension: "plugins"},
 		SupportedKinds: []string{source.KindSkill, source.KindContext, source.KindExtension},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".opencode/skills", source.KindContext: "", source.KindExtension: ".opencode/plugins"},
 	},
 	Pi: {
 		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindCommand: "prompts", source.KindExtension: "extensions"},
 		SupportedKinds: []string{source.KindSkill, source.KindCommand, source.KindExtension},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".pi/skills", source.KindCommand: ".pi/prompts", source.KindExtension: ".pi/extensions"},
 	},
 }
 

@@ -33,6 +33,7 @@ agentcfg [flags]
 * [agentcfg init](../agentcfg_init/)	 - Write a default config file
 * [agentcfg install](../agentcfg_install/)	 - Install an item into one or more targets
 * [agentcfg list](../agentcfg_list/)	 - List items in the source tree
+* [agentcfg move](../agentcfg_move/)	 - Move an item between global scope and a project
 * [agentcfg project](../agentcfg_project/)	 - Manage project folders to scan for in-repo agent configuration
 * [agentcfg status](../agentcfg_status/)	 - Show install state of every item across every target
 * [agentcfg sync](../agentcfg_sync/)	 - Install all absent and drifted items across all targets

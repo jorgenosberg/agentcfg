@@ -184,6 +184,10 @@ var projectRules = []projectScanRule{
 	{agent: "pi", kind: KindCommand, relPath: ".pi/prompts", isDir: true},
 	{agent: "pi", kind: KindExtension, relPath: ".pi/extensions", isDir: true},
 
+	// Shared skills dir read by Codex, Antigravity, opencode, Pi and Copilot
+	{agent: "agents", kind: KindSkill, relPath: ".agents/skills", isDir: true},
+	{agent: "copilot", kind: KindSkill, relPath: ".github/skills", isDir: true},
+
 	// Codex CLI / opencode / agents (shared AGENTS.md format)
 	{agent: "agents", kind: KindContext, relPath: "AGENTS.md"},
 
