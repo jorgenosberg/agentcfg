@@ -293,6 +293,15 @@ func statusOf(dest, src, strategy string) Status {
 
 // sameContent compares files byte-for-byte and directories recursively.
 func sameContent(a, b string) bool {
+	// Resolve first: filepath.Walk does not descend into a symlinked root.
+	a, errA := filepath.EvalSymlinks(a)
+	b, errB := filepath.EvalSymlinks(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	if a == b {
+		return true
+	}
 	fa, errA := os.Stat(a)
 	fb, errB := os.Stat(b)
 	if errA != nil || errB != nil {
