@@ -3,6 +3,7 @@
 package fsutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -60,10 +61,13 @@ func EditJSON(path string, defaultDoc []byte, edit func(map[string]json.RawMessa
 		return err
 	}
 
-	out, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
+	// No HTML escaping: agent settings hold shell commands with && and <.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(doc); err != nil {
 		return err
 	}
-	out = append(out, '\n')
-	return AtomicWrite(path, out)
+	return AtomicWrite(path, buf.Bytes())
 }

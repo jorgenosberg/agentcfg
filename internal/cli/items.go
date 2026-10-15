@@ -63,7 +63,10 @@ func newStatusCmd(load func() (config.Config, error)) *cobra.Command {
 				if asJSON {
 					return writeStatusJSON(cmd.OutOrStdout(), entries)
 				}
-				return writeStatus(cmd.OutOrStdout(), entries)
+				if err := writeStatus(cmd.OutOrStdout(), entries); err != nil {
+					return err
+				}
+				return writeHookStatus(cmd.OutOrStdout(), cfg.Targets)
 			}
 			if err := run(); err != nil {
 				if asJSON {
@@ -116,6 +119,9 @@ func newInstallCmd(load func() (config.Config, error)) *cobra.Command {
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", t.Name, item.Name, st)
 			}
+			if err := registerItemHooks(cmd.OutOrStdout(), item, targets); err != nil {
+				return err
+			}
 			if failed > 0 {
 				return fmt.Errorf("%d target(s) failed", failed)
 			}
@@ -158,6 +164,9 @@ func newUninstallCmd(load func() (config.Config, error)) *cobra.Command {
 					continue
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\tremoved\n", t.Name, item.Name)
+			}
+			if err := registerItemHooks(cmd.OutOrStdout(), item, targets); err != nil {
+				return err
 			}
 			if failed > 0 {
 				return fmt.Errorf("%d target(s) failed", failed)
@@ -242,6 +251,9 @@ func newToggleCmd(load func() (config.Config, error), pathOf func() (string, err
 				fmt.Fprintf(tw, "%s\t%s\t%s\n", t.Name, item.Name, verb)
 			}
 			if err := tw.Flush(); err != nil {
+				return err
+			}
+			if err := registerItemHooks(cmd.OutOrStdout(), item, targets); err != nil {
 				return err
 			}
 			if failed > 0 {

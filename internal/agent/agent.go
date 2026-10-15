@@ -41,14 +41,14 @@ var profiles = map[string]Profile{
 		ProjectSubdirs: map[string]string{source.KindSkill: ".claude/skills", source.KindHook: ".claude/hooks", source.KindContext: "", source.KindCommand: ".claude/commands"},
 	},
 	Codex: {
-		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: ""},
-		SupportedKinds: []string{source.KindSkill, source.KindContext},
-		ProjectSubdirs: map[string]string{source.KindSkill: ".agents/skills", source.KindContext: ""},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindHook: "hooks", source.KindContext: ""},
+		SupportedKinds: []string{source.KindSkill, source.KindHook, source.KindContext},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".agents/skills", source.KindHook: ".codex/hooks", source.KindContext: ""},
 	},
 	Copilot: {
-		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindContext: "", source.KindCommand: ".github/prompts"},
-		SupportedKinds: []string{source.KindSkill, source.KindContext, source.KindCommand},
-		ProjectSubdirs: map[string]string{source.KindSkill: ".github/skills", source.KindContext: "", source.KindCommand: ".github/prompts"},
+		Subdirs:        map[string]string{source.KindSkill: "skills", source.KindHook: "hooks", source.KindContext: "", source.KindCommand: ".github/prompts"},
+		SupportedKinds: []string{source.KindSkill, source.KindHook, source.KindContext, source.KindCommand},
+		ProjectSubdirs: map[string]string{source.KindSkill: ".github/skills", source.KindHook: ".github/hooks", source.KindContext: "", source.KindCommand: ".github/prompts"},
 	},
 	Gemini: {
 		// Antigravity CLI (fka Gemini CLI) keeps user skills under antigravity-cli/
