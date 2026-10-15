@@ -7,8 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/jorgenosberg/agentcfg/internal/agent"
 	"github.com/jorgenosberg/agentcfg/internal/backup"
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/hookcfg"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 )
@@ -95,14 +97,24 @@ func moveToProject(w io.Writer, cfg config.Config, cfgPath, name, projectName, k
 	for _, s := range plan.Kept {
 		fmt.Fprintf(w, "keep\t%s on %s (%s)\n", it.Name, s.Target.Name, s.Note)
 	}
-	warnHook(w, it.Kind)
+	var affected []config.Target
+	for _, s := range plan.Installs {
+		affected = append(affected, s.Target)
+	}
+	for _, s := range plan.Removals {
+		affected = append(affected, s.Target)
+	}
 	if dryRun {
+		previewHooks(w, it, plan.Installs)
 		return nil
 	}
 	if err := backupFirst(w, cfg, noBackup); err != nil {
 		return err
 	}
-	return plan.Apply(cfgPath, force)
+	if err := plan.Apply(cfgPath, force); err != nil {
+		return err
+	}
+	return registerItemHooks(w, it, affected)
 }
 
 func moveToGlobal(w io.Writer, cfg config.Config, cfgPath, name, from, kind, targetName string, force, keep, dryRun, noBackup bool) error {
@@ -166,14 +178,22 @@ func moveToGlobal(w io.Writer, cfg config.Config, cfgPath, name, from, kind, tar
 			fmt.Fprintf(w, "remove\t%s\n", c.Path)
 		}
 	}
-	warnHook(w, plan.Item.Kind)
 	if dryRun {
 		return nil
 	}
 	if err := backupFirst(w, cfg, noBackup); err != nil {
 		return err
 	}
-	return plan.Apply(cfgPath, cfg, force, keep)
+	if err := plan.Apply(cfgPath, cfg, force, keep); err != nil {
+		return err
+	}
+	affected := plan.Targets
+	for _, a := range []string{agent.Claude, agent.Codex, agent.Copilot} {
+		if pt, ok := config.ProjectTarget(found, a, false); ok {
+			affected = append(affected, pt)
+		}
+	}
+	return registerItemHooks(w, plan.Item, affected)
 }
 
 func pickItem(items []source.Item, name, kind string) (source.Item, error) {
@@ -212,10 +232,21 @@ func backupFirst(w io.Writer, cfg config.Config, skip bool) error {
 	return nil
 }
 
-// warnHook flags that agentcfg moves hook scripts but not the settings.json
-// entries that run them.
-func warnHook(w io.Writer, kind string) {
-	if kind == source.KindHook {
-		fmt.Fprintln(w, "warn\thook registrations in settings.json are not moved; update the global and project settings to the new path")
+// previewHooks prints the project registrations a hook move would add.
+func previewHooks(w io.Writer, it source.Item, installs []sync.MoveStep) {
+	if it.Kind != source.KindHook {
+		return
+	}
+	regs, err := hookcfg.Parse(it.Path)
+	if err != nil {
+		fmt.Fprintf(w, "warn\t%v\n", err)
+		return
+	}
+	for _, s := range installs {
+		if f := hookcfg.ConfigFile(s.Target); f != "" {
+			for _, r := range regs {
+				fmt.Fprintf(w, "register\t%s (%s) in %s\n", it.Name, r, f)
+			}
+		}
 	}
 }

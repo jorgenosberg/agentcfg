@@ -56,6 +56,7 @@ type Target struct {
 	Subdirs  map[string]string `json:"subdirs,omitempty"`  // per-kind subdir overrides
 	Exclude  []string          `json:"exclude,omitempty"`  // "kind/name" pairs to skip, e.g. "context/GEMINI.md"
 	Disabled []string          `json:"disabled,omitempty"` // user-toggled-off item names
+	Project  bool              `json:"-"`                  // set by ProjectTarget; Path is a repository root
 }
 
 // Excludes reports whether it should be skipped for this target.
@@ -295,5 +296,6 @@ func ProjectTarget(p Project, agentName string, link bool) (Target, bool) {
 		Alias:    agentName,
 		Strategy: strategy,
 		Subdirs:  prof.ProjectSubdirs,
+		Project:  true,
 	}, true
 }

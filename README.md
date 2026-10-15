@@ -74,6 +74,19 @@ Source path is configurable. Default: `~/.agentcfg/source/`. Point at any
 existing directory via `agentcfg init --source PATH` or by editing
 `~/.agentcfg/config.json`.
 
+## Hook registration
+
+A hook script opts in to registration with a header line per registration:
+
+```sh
+# agentcfg-hook: PreToolUse Bash timeout=10
+```
+
+agentcfg then adds it to Claude Code's `settings.json`, Codex's
+`hooks.json`, and Copilot CLI's `hooks/agentcfg.json`, globally and in
+projects. Scripts without a header are installed but not registered. See
+the hook registration guide in the docs.
+
 ## Strategy: link vs copy
 
 - `link` (default) — symlinks installed entries to the source. Single

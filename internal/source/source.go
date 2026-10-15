@@ -106,6 +106,9 @@ func ScanWith(root string, sd Subdirs) ([]Item, error) {
 			if !desc.includeDots && hidden(e.Name()) {
 				continue
 			}
+			if kind == KindHook && SkipHookEntry(e.Name()) {
+				continue
+			}
 			p := filepath.Join(dir, e.Name())
 			fi, err := os.Stat(p) // follow symlinks
 			if err != nil {
@@ -137,6 +140,12 @@ func ScanWith(root string, sd Subdirs) ([]Item, error) {
 }
 
 func hidden(name string) bool { return len(name) > 0 && name[0] == '.' }
+
+// SkipHookEntry reports whether a file in a hooks directory is not a hook
+// script: hidden files, and JSON registration files such as Copilot's.
+func SkipHookEntry(name string) bool {
+	return hidden(name) || strings.EqualFold(filepath.Ext(name), ".json")
+}
 
 func isMarkdown(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
@@ -174,6 +183,10 @@ var projectRules = []projectScanRule{
 	// GitHub Copilot
 	{agent: "copilot", kind: KindContext, relPath: ".github/copilot-instructions.md"},
 	{agent: "copilot", kind: KindCommand, relPath: ".github/prompts", isDir: true},
+	{agent: "copilot", kind: KindHook, relPath: ".github/hooks", isDir: true},
+
+	// Codex CLI
+	{agent: "codex", kind: KindHook, relPath: ".codex/hooks", isDir: true},
 
 	// OpenCode
 	{agent: "opencode", kind: KindSkill, relPath: ".opencode/skills", isDir: true},
@@ -231,7 +244,7 @@ func ScanProject(root, name string) ([]ProjectItem, error) {
 				return nil, fmt.Errorf("read %s: %w", abs, err)
 			}
 			for _, e := range entries {
-				if hidden(e.Name()) {
+				if hidden(e.Name()) || rule.kind == KindHook && SkipHookEntry(e.Name()) {
 					continue
 				}
 				entryAbs := filepath.Join(abs, e.Name())

@@ -11,10 +11,24 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/backup"
 	"github.com/jorgenosberg/agentcfg/internal/claudecfg"
 	"github.com/jorgenosberg/agentcfg/internal/config"
+	"github.com/jorgenosberg/agentcfg/internal/hookcfg"
 	"github.com/jorgenosberg/agentcfg/internal/lock"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 	"github.com/jorgenosberg/agentcfg/internal/sync"
 )
+
+// registerHooks updates hook registrations after a hook item changed.
+func registerHooks(it source.Item, targets []config.Target) error {
+	if it.Kind != source.KindHook {
+		return nil
+	}
+	for _, r := range hookcfg.ReconcileAll(targets, false) {
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+	return nil
+}
 
 func (m model) buildItemActions() []paletteAction {
 	switch m.mode {
@@ -71,6 +85,9 @@ func (m model) buildSourceItemActions() []paletteAction {
 							ok++
 						}
 					}
+					if err := registerHooks(item, cfg.Targets); err != nil {
+						return cfgReloadMsg{err: err}
+					}
 					if fail > 0 {
 						return cfgReloadMsg{status: fmt.Sprintf("installed %d, %d errors", ok, fail)}
 					}
@@ -114,6 +131,9 @@ func (m model) buildSourceItemActions() []paletteAction {
 							return cfgReloadMsg{err: err}
 						}
 					}
+					if err := registerHooks(item, tgts); err != nil {
+						return cfgReloadMsg{err: err}
+					}
 					verb := "enabled"
 					if disable {
 						verb = "disabled"
@@ -142,6 +162,9 @@ func (m model) buildSourceItemActions() []paletteAction {
 							ok++
 						}
 					}
+					if err := registerHooks(item, cfg.Targets); err != nil {
+						return cfgReloadMsg{err: err}
+					}
 					if fail > 0 {
 						return cfgReloadMsg{status: fmt.Sprintf("adopted %d, %d errors", ok, fail)}
 					}
@@ -166,6 +189,9 @@ func (m model) buildSourceItemActions() []paletteAction {
 							if err := sync.Uninstall(e.Target, e.Target.ResolveStrategy(cfg.DefaultStrategy), e.Item); err != nil {
 								lastErr = err
 							}
+						}
+						if err := registerHooks(item, cfg.Targets); err != nil {
+							return err
 						}
 						return lastErr
 					},
@@ -432,6 +458,11 @@ func (m model) buildGlobalActions() []paletteAction {
 					return cfgReloadMsg{status: "no targets configured; run `agentcfg discover` to find agent dirs, then `agentcfg discover --add <name>`"}
 				}
 				results := sync.Sync(cfg, items, lck, false, false)
+				for _, r := range hookcfg.ReconcileAll(cfg.Targets, false) {
+					if r.Err != nil {
+						return cfgReloadMsg{err: r.Err}
+					}
+				}
 				var installed, updated, failed int
 				for _, r := range results {
 					if r.Err != nil {

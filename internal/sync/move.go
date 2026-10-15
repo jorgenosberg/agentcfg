@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
+	"github.com/jorgenosberg/agentcfg/internal/agent"
 	"github.com/jorgenosberg/agentcfg/internal/config"
 	"github.com/jorgenosberg/agentcfg/internal/source"
 )
@@ -55,6 +57,9 @@ func PlanToProject(cfg config.Config, it source.Item, p config.Project, link boo
 		}
 		seen[dest] = true
 		plan.Installs = append(plan.Installs, MoveStep{Target: pt, Dest: dest})
+	}
+	if it.Kind == source.KindHook {
+		plan.Installs = dropCopilotHook(plan.Installs)
 	}
 	if len(plan.Removals) == 0 {
 		if len(plan.Kept) > 0 {
@@ -185,6 +190,17 @@ func (pl GlobalMovePlan) Apply(cfgPath string, cfg config.Config, force, keep bo
 		}
 	}
 	return nil
+}
+
+// dropCopilotHook removes the Copilot install when Claude also gets the hook.
+// Copilot CLI runs the hooks in a project's .claude/settings.json, so a
+// second registration in .github/hooks would run the script twice.
+func dropCopilotHook(installs []MoveStep) []MoveStep {
+	hasClaude := slices.ContainsFunc(installs, func(s MoveStep) bool { return s.Target.Agent == agent.Claude })
+	if !hasClaude {
+		return installs
+	}
+	return slices.DeleteFunc(installs, func(s MoveStep) bool { return s.Target.Agent == agent.Copilot })
 }
 
 // movable rejects kinds that move does not handle. Context files share fixed

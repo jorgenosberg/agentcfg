@@ -123,10 +123,11 @@ func newSyncCmd(load func() (config.Config, error)) *cobra.Command {
 			if len(results) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "everything up to date")
 			}
+			hookErr := registerHooks(cmd.OutOrStdout(), cfg.Targets, dryRun)
 			if failed > 0 {
 				return fmt.Errorf("%d item(s) failed", failed)
 			}
-			return nil
+			return hookErr
 		},
 	}
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "show what would be installed without making changes")

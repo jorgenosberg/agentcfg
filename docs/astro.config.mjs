@@ -54,6 +54,7 @@ export default defineConfig({
             { label: 'Source layout', slug: 'guides/source-layout' },
             { label: 'Discovery & import', slug: 'guides/discovery-and-import' },
             { label: 'Link vs copy', slug: 'guides/link-vs-copy' },
+            { label: 'Hook registration', slug: 'guides/hooks' },
             { label: 'Sandbox testing', slug: 'guides/sandbox-testing' },
           ],
         },
