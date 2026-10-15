@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/jorgenosberg/agentcfg/internal/fsutil"
 )
@@ -28,8 +30,9 @@ func marshal(v any) ([]byte, error) {
 // planNested handles the Claude and Codex format: a top-level "hooks" object
 // mapping event to [{matcher, hooks: [{type, command, timeout}]}]. Owned
 // entries are updated in place so the order of existing entries is kept.
-// It returns nil when nothing needs writing.
-func planNested(path string, want []Entry, owned, foreign func(string) bool, res *Result) (func() error, error) {
+// It returns nil when nothing needs writing. statusField, when set, names the
+// field that labels the hook (see setStatus).
+func planNested(path, statusField string, want []Entry, owned, foreign func(string) bool, res *Result) (func() error, error) {
 	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		if len(want) == 0 {
@@ -95,7 +98,8 @@ func planNested(path string, want []Entry, owned, foreign func(string) bool, res
 				k := key(ev, matcher, cmd)
 				if w, ok := wantBy[k]; ok && !seen[k] {
 					seen[k] = true
-					if setTimeout(hm, "timeout", w.Timeout) {
+					timeoutChanged := setTimeout(hm, "timeout", w.Timeout)
+					if setStatus(hm, statusField, w) || timeoutChanged {
 						res.Updated = append(res.Updated, w)
 					}
 					kept = append(kept, hm)
@@ -128,6 +132,7 @@ func planNested(path string, want []Entry, owned, foreign func(string) bool, res
 		seen[k] = true
 		hook := map[string]any{"type": "command", "command": w.Command}
 		setTimeout(hook, "timeout", w.Timeout)
+		setStatus(hook, statusField, w)
 		groups, _ := events[w.Event].([]any)
 		placed := false
 		for _, g := range groups {
@@ -183,6 +188,28 @@ func setTimeout(m map[string]any, field string, n int) bool {
 		return false
 	}
 	m[field] = n
+	return true
+}
+
+// setStatus labels the hook with the header's status, or with the script name
+// when the header has none and the entry has no label yet. A label set by
+// hand is kept unless the header overrides it. It reports whether it changed.
+func setStatus(m map[string]any, field string, w Entry) bool {
+	if field == "" {
+		return false
+	}
+	cur, _ := m[field].(string)
+	want := w.Status
+	if want == "" {
+		if cur != "" {
+			return false
+		}
+		want = strings.TrimSuffix(w.Script, filepath.Ext(w.Script))
+	}
+	if cur == want {
+		return false
+	}
+	m[field] = want
 	return true
 }
 

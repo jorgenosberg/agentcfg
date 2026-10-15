@@ -39,6 +39,7 @@ type Registration struct {
 	Event   string
 	Matcher string // empty means every tool, or no matcher for the event
 	Timeout int    // seconds; 0 leaves the agent default
+	Status  string // label shown by agents that support one (Codex statusMessage)
 }
 
 func (r Registration) String() string {
@@ -48,6 +49,9 @@ func (r Registration) String() string {
 	}
 	if r.Timeout > 0 {
 		s += " timeout=" + strconv.Itoa(r.Timeout)
+	}
+	if r.Status != "" {
+		s += ` status="` + r.Status + `"`
 	}
 	return s
 }
@@ -83,11 +87,19 @@ func Parse(path string) ([]Registration, error) {
 }
 
 func parseLine(s string) (Registration, error) {
+	var status string
+	if before, rest, ok := strings.Cut(s, `status="`); ok {
+		value, after, closed := strings.Cut(rest, `"`)
+		if !closed || value == "" {
+			return Registration{}, fmt.Errorf(`status in %s header needs a closing quote and a value`, headerPrefix)
+		}
+		status, s = value, before+" "+after
+	}
 	fields := strings.Fields(s)
 	if len(fields) == 0 {
 		return Registration{}, fmt.Errorf("%s header has no event", headerPrefix)
 	}
-	r := Registration{Event: fields[0]}
+	r := Registration{Event: fields[0], Status: status}
 	for _, f := range fields[1:] {
 		if v, ok := strings.CutPrefix(f, "timeout="); ok {
 			n, err := strconv.Atoi(v)
@@ -109,12 +121,13 @@ func parseLine(s string) (Registration, error) {
 type layout struct {
 	global, project string // config file relative to the target path
 	prefix          string // repository root in project hook commands
+	statusField     string // entry field holding the hook's label, if the agent has one
 	copilot         bool   // agentcfg-owned Copilot file instead of a shared settings file
 }
 
 var layouts = map[string]layout{
 	agent.Claude:  {global: "settings.json", project: ".claude/settings.json", prefix: `"$CLAUDE_PROJECT_DIR"`},
-	agent.Codex:   {global: "hooks.json", project: ".codex/hooks.json", prefix: gitRoot},
+	agent.Codex:   {global: "hooks.json", project: ".codex/hooks.json", prefix: gitRoot, statusField: "statusMessage"},
 	agent.Copilot: {global: "hooks/agentcfg.json", project: ".github/hooks/agentcfg.json", prefix: gitRoot, copilot: true},
 }
 
@@ -297,7 +310,7 @@ func Reconcile(t config.Target, dryRun bool) Result {
 	if l.copilot {
 		write, err = planCopilot(res.File, want, &res)
 	} else {
-		write, err = planNested(res.File, want, owned, foreign, &res)
+		write, err = planNested(res.File, l.statusField, want, owned, foreign, &res)
 	}
 	if err != nil {
 		res.Err = err

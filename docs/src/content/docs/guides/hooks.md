@@ -11,7 +11,9 @@ Installing a hook script only copies or links the file. To make an agent run it,
 # agentcfg-hook: SessionStart
 ```
 
-The format is `<Event> [Matcher] [timeout=N]`. Events and matchers use Claude Code's names, and the script receives Claude Code's hook payload on every agent. A script without a header is installed but never registered.
+The format is `<Event> [Matcher] [timeout=N] [status="Label"]`. Events and matchers use Claude Code's names, and the script receives Claude Code's hook payload on every agent. A script without a header is installed but never registered.
+
+`status` names the hook in Codex (its `statusMessage`, shown in `/hooks` and while the hook runs). Without it, agentcfg uses the script name, but keeps a label you set by hand in `hooks.json`. Claude Code and Copilot ignore it.
 
 `sync`, `install`, `uninstall`, `toggle`, and `move` update the registrations. `status` lists scripts that are unregistered, registrations that are out of date, and registrations whose script is gone.
 
