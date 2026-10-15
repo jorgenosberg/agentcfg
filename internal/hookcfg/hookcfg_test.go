@@ -61,6 +61,19 @@ func TestParse(t *testing.T) {
 		t.Fatalf("got %+v, want %+v (headers after the comment block are ignored)", regs, want)
 	}
 
+	writeFile(t, p, "#!/bin/sh\n# agentcfg-hook: PreToolUse Bash status=\"Checking repo git policy\" timeout=5\n")
+	regs, err = Parse(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (Registration{Event: "PreToolUse", Matcher: "Bash", Timeout: 5, Status: "Checking repo git policy"}); len(regs) != 1 || regs[0] != want {
+		t.Fatalf("got %+v, want %+v", regs, want)
+	}
+	writeFile(t, p, "#!/bin/sh\n# agentcfg-hook: PreToolUse Bash status=\"open\n")
+	if _, err := Parse(p); err == nil {
+		t.Fatal("expected an error for an unclosed status")
+	}
+
 	writeFile(t, p, "#!/bin/sh\n# agentcfg-hook: PreToolUse Edit Write\n")
 	if _, err := Parse(p); err == nil {
 		t.Fatal("expected an error for a matcher with a space")
@@ -151,6 +164,44 @@ func TestReconcileUpdatesTimeoutInPlace(t *testing.T) {
 	h := readJSON(t, file)["hooks"].(map[string]any)["PreToolUse"].([]any)[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)
 	if h["timeout"] != float64(30) || h["statusMessage"] != "Checking" {
 		t.Errorf("entry not updated in place: %v", h)
+	}
+}
+
+func TestReconcileCodexStatusMessage(t *testing.T) {
+	root := t.TempDir()
+	tg := config.Target{Name: "codex", Agent: "codex", Path: filepath.Join(root, ".codex")}
+	hooks := filepath.Join(tg.Path, "hooks")
+	writeFile(t, filepath.Join(hooks, "a-plain.sh"), "#!/bin/sh\n# agentcfg-hook: PreToolUse Bash\n")
+	writeFile(t, filepath.Join(hooks, "b-labeled.sh"), "#!/bin/sh\n# agentcfg-hook: PreToolUse Bash status=\"From header\"\n")
+	writeFile(t, filepath.Join(hooks, "c-manual.sh"), "#!/bin/sh\n# agentcfg-hook: PreToolUse Bash\n")
+	file := filepath.Join(tg.Path, "hooks.json")
+	writeFile(t, file, `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[`+
+		`{"type":"command","command":"`+filepath.Join(hooks, "b-labeled.sh")+`","statusMessage":"Old"},`+
+		`{"type":"command","command":"`+filepath.Join(hooks, "c-manual.sh")+`","statusMessage":"Set by hand"}]}]}}`)
+
+	if res := Reconcile(tg, false); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	got := map[string]any{}
+	for _, h := range readJSON(t, file)["hooks"].(map[string]any)["PreToolUse"].([]any)[0].(map[string]any)["hooks"].([]any) {
+		hm := h.(map[string]any)
+		got[filepath.Base(hm["command"].(string))] = hm["statusMessage"]
+	}
+	want := map[string]any{"a-plain.sh": "a-plain", "b-labeled.sh": "From header", "c-manual.sh": "Set by hand"}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s: statusMessage %v, want %v", k, got[k], v)
+		}
+	}
+
+	// Claude has no label field, so none is written there.
+	claude := config.Target{Name: "claude", Agent: "claude", Path: filepath.Join(root, ".claude")}
+	writeFile(t, filepath.Join(claude.Path, "hooks", "a.sh"), "#!/bin/sh\n# agentcfg-hook: PreToolUse Bash status=\"X\"\n")
+	if res := Reconcile(claude, false); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	if fileBody, _ := os.ReadFile(filepath.Join(claude.Path, "settings.json")); strings.Contains(string(fileBody), "statusMessage") {
+		t.Error("statusMessage written to Claude settings")
 	}
 }
 
