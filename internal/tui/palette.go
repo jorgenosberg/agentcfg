@@ -97,7 +97,7 @@ func (m model) buildSourceItemActions() []paletteAction {
 		})
 	}
 
-	// Toggle — always offered
+	// Toggle is always offered
 	{
 		item := g.Item
 		targets := cfg.Targets
@@ -236,7 +236,7 @@ func (m model) buildSourceItemActions() []paletteAction {
 		})
 	}
 
-	// Editor and versioning — always shown for source items
+	// Editor and versioning are always shown for source items
 	{
 		item := g.Item
 		actions = append(actions, paletteAction{
@@ -441,7 +441,6 @@ func (m model) buildGlobalActions() []paletteAction {
 
 	var actions []paletteAction
 
-	// Sync all
 	actions = append(actions, paletteAction{
 		label: "Sync all",
 		fn: func() (overlayModel, tea.Cmd) {
@@ -492,7 +491,6 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
-	// Rescan
 	actions = append(actions, paletteAction{
 		label: "Rescan",
 		fn: func() (overlayModel, tea.Cmd) {
@@ -518,7 +516,6 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
-	// Restore from latest backup
 	actions = append(actions, paletteAction{
 		label: "Restore from latest backup",
 		fn: func() (overlayModel, tea.Cmd) {
@@ -566,7 +563,6 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
-	// Discover agents
 	actions = append(actions, paletteAction{
 		label: "Discover agents",
 		fn: func() (overlayModel, tea.Cmd) {
@@ -574,7 +570,7 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
-	// Remove target — only shown if a target filter is currently active
+	// Remove target only when a target filter is active
 	targetName := m.sourceTarget
 	if targetName == "" {
 		targetName = m.targetFilter
@@ -610,7 +606,7 @@ func (m model) buildGlobalActions() []paletteAction {
 		},
 	})
 
-	// Remove project — only shown when cursor is on a project item
+	// Remove project only when the cursor is on a project item
 	if m.mode == viewProjects && m.cursor < len(m.projectItems) {
 		projName := m.projectItems[m.cursor].Project
 		p := projName
@@ -635,7 +631,6 @@ func (m model) buildGlobalActions() []paletteAction {
 		})
 	}
 
-	// Init wizard
 	actions = append(actions, paletteAction{
 		label: "Init wizard",
 		fn: func() (overlayModel, tea.Cmd) {

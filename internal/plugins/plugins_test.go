@@ -43,7 +43,7 @@ func TestLoad_MergesThreeFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// settings.json — one enabled, one disabled
+	// settings.json: one enabled, one disabled
 	writeJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]any{
 		"enabledPlugins": map[string]bool{
 			"alpha@official": true,

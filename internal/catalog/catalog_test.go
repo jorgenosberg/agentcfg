@@ -74,7 +74,7 @@ func TestTargetForClaude(t *testing.T) {
 		t.Errorf("Alias: want %q got %q", "claude", tgt.Alias)
 	}
 	if tgt.Subdirs != nil {
-		t.Error("Subdirs should be nil — profile drives defaults")
+		t.Error("Subdirs should be nil; the profile drives defaults")
 	}
 }
 

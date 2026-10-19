@@ -6,7 +6,7 @@
 
 Sync skills, hooks, and instruction files (CLAUDE.md, AGENTS.md, etc.)
 across local AI coding agent configurations from one user-defined source
-tree. Based on the idea that most AI agent configs are just plain files, at least for now, so they can be managed with symlinks, copies etc. 
+tree. Most agent configs are plain files, so they can be managed with symlinks or copies.
 
 Created because I have personally had multiple Claude accounts enabled on the same machine, a Codex account, an OpenCode installation etc., all at the same time, and wanted an easier way to copy and export my setup between agents.
 
@@ -47,7 +47,7 @@ agentcfg install obsidian-cli -t claude
 ## Discovery and import
 
 agentcfg ships a built-in catalog of known AI agent install directories:
-`~/.claude`, `~/.codex`, `~/.copilot`, `~/.gemini` (which is also for new Antigravity CLI), `~/.config/opencode`, `~/.pi/agent`,
+`~/.claude`, `~/.codex`, `~/.copilot`, `~/.gemini` (also used by the Antigravity CLI), `~/.config/opencode`, `~/.pi/agent`,
 `~/.agents`. Discovery is opt-in:
 
 - `init` does not scan anywhere outside the source directory.
@@ -89,10 +89,10 @@ the hook registration guide in the docs.
 
 ## Strategy: link vs copy
 
-- `link` (default) — symlinks installed entries to the source. Single
+- `link` (default): symlinks installed entries to the source. Single
   source of truth, edits propagate instantly. Some agents may not resolve
   symlinks correctly.
-- `copy` — snapshots the source into the target. Works with any agent but
+- `copy`: snapshots the source into the target. Works with any agent but
   requires re-sync after source edits (`agentcfg install <item>`
   overwrites).
 

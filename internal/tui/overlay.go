@@ -22,7 +22,7 @@ func dimBackground(s string) string {
 // pasteOverlay composites popup on top of background at position (x, y).
 // It strips ANSI from each affected background line before rune-slicing, then
 // re-applies gray styling to the left and right portions. Assumes ASCII/Latin
-// content — rune count equals display width. popup is the raw box string from
+// content, where rune count equals display width. popup is the raw box string from
 // an overlayModel's View method.
 func pasteOverlay(background, popup string, x, y int) string {
 	bgLines := strings.Split(background, "\n")
@@ -75,8 +75,6 @@ func renderOverlayBox(w int, content, title string, boxW int) string {
 		Width(boxW).
 		Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Render(title) + "\n\n" + content)
 }
-
-// ── multiSelect widget ────────────────────────────────────────────────────────
 
 type msItem struct {
 	label    string
@@ -169,8 +167,6 @@ func (ms multiSelect) View() string {
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
-
-// ── paletteOverlay ────────────────────────────────────────────────────────────
 
 type paletteAction struct {
 	label string
@@ -270,8 +266,6 @@ func (o *paletteOverlay) View(w int) string {
 	return renderOverlayBox(w, content, o.title, 52)
 }
 
-// ── helpOverlay ───────────────────────────────────────────────────────────────
-
 type helpOverlay struct{}
 
 func newHelpOverlay() *helpOverlay { return &helpOverlay{} }
@@ -354,8 +348,6 @@ func (o *helpOverlay) View(w int) string {
 
 	return renderOverlayBox(w, strings.TrimRight(sb.String(), "\n"), "Keybindings", 60)
 }
-
-// ── confirmOverlay ────────────────────────────────────────────────────────────
 
 type confirmOverlay struct {
 	title  string

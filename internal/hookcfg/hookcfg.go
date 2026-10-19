@@ -136,12 +136,6 @@ func layoutFor(t config.Target) (layout, bool) {
 	return l, ok && t.SupportsKind(source.KindHook) && t.SubdirFor(source.KindHook) != ""
 }
 
-// Supported reports whether agentcfg can register hooks for the target.
-func Supported(t config.Target) bool {
-	_, ok := layoutFor(t)
-	return ok
-}
-
 // ConfigFile returns the file holding the target's hook registrations, or ""
 // when the target is not supported.
 func ConfigFile(t config.Target) string {

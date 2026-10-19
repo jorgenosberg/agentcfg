@@ -21,9 +21,9 @@ const (
 // Config is the on-disk schema for ~/.agentcfg/config.json.
 //
 // Strategy values:
-//   - "link" — symlinks installed entries to the source. Fast, single
+//   - "link": symlinks installed entries to the source. Fast, single
 //     source of truth; some agents may not resolve symlinks correctly.
-//   - "copy" — snapshots source into the target. Safe with any agent but
+//   - "copy": snapshots source into the target. Safe with any agent but
 //     requires re-sync after source edits.
 type Config struct {
 	// Source is the root directory holding skills, hooks, context, and other resources.

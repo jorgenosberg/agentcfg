@@ -85,7 +85,7 @@ func LoadFrom(dir string) (*Registry, error) {
 	for fullName, comp := range components {
 		p, ok := pluginMap[fullName]
 		if !ok {
-			// Known in catalog but not installed — skip.
+			// Known in catalog but not installed.
 			continue
 		}
 		p.Skills = comp.skills
@@ -118,8 +118,6 @@ func (r *Registry) Get(fullName string) (Plugin, bool) {
 	}
 	return Plugin{}, false
 }
-
-// — file parsers —
 
 // installedEntry mirrors one element of the installed_plugins.json plugins array.
 type installedEntry struct {
