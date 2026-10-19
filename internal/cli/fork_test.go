@@ -269,11 +269,11 @@ func TestForkCmd_MultipleClaudeDirs(t *testing.T) {
 	seedConfig(t, home, cfg)
 
 	claudeDir := filepath.Join(home, ".claude")
-	knowitDir := filepath.Join(home, ".claude-knowit")
+	workDir := filepath.Join(home, ".claude-work")
 	buildForkFixtureIn(t, claudeDir)
-	buildForkFixtureIn(t, knowitDir)
+	buildForkFixtureIn(t, workDir)
 
-	out, err := runCLI(t, "fork", "myplugin@market", "--claude-dir", claudeDir, "--claude-dir", knowitDir)
+	out, err := runCLI(t, "fork", "myplugin@market", "--claude-dir", claudeDir, "--claude-dir", workDir)
 	if err != nil {
 		t.Fatalf("fork: %v\noutput: %s", err, out)
 	}
@@ -290,15 +290,15 @@ func TestForkCmd_MultipleClaudeDirs(t *testing.T) {
 	// Both claude dirs must have the fork enabled and upstream disabled.
 	assertPluginEnabled(t, filepath.Join(claudeDir, "settings.json"), "myplugin@agentcfg-forks", true)
 	assertPluginEnabled(t, filepath.Join(claudeDir, "settings.json"), "myplugin@market", false)
-	assertPluginEnabled(t, filepath.Join(knowitDir, "settings.json"), "myplugin@agentcfg-forks", true)
-	assertPluginEnabled(t, filepath.Join(knowitDir, "settings.json"), "myplugin@market", false)
+	assertPluginEnabled(t, filepath.Join(workDir, "settings.json"), "myplugin@agentcfg-forks", true)
+	assertPluginEnabled(t, filepath.Join(workDir, "settings.json"), "myplugin@market", false)
 
 	// fork list should show both claude dirs against the single entry.
 	out, err = runCLI(t, "fork", "list")
 	if err != nil {
 		t.Fatalf("fork list: %v\noutput: %s", err, out)
 	}
-	if !strings.Contains(out, claudeDir) || !strings.Contains(out, knowitDir) {
+	if !strings.Contains(out, claudeDir) || !strings.Contains(out, workDir) {
 		t.Errorf("expected both claude dirs in fork list: %s", out)
 	}
 }
@@ -309,14 +309,14 @@ func TestForkCmd_ClaudeDirMissingPlugin_SkipsWithoutFailing(t *testing.T) {
 	seedConfig(t, home, cfg)
 
 	claudeDir := filepath.Join(home, ".claude")
-	knowitDir := filepath.Join(home, ".claude-knowit")
+	workDir := filepath.Join(home, ".claude-work")
 	buildForkFixtureIn(t, claudeDir)
-	// knowitDir intentionally left empty: plugin not installed there.
-	if err := os.MkdirAll(knowitDir, 0o755); err != nil {
-		t.Fatalf("mkdir knowit dir: %v", err)
+	// workDir intentionally left empty: plugin not installed there.
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatalf("mkdir work dir: %v", err)
 	}
 
-	out, err := runCLI(t, "fork", "myplugin@market", "--claude-dir", claudeDir, "--claude-dir", knowitDir)
+	out, err := runCLI(t, "fork", "myplugin@market", "--claude-dir", claudeDir, "--claude-dir", workDir)
 	if err != nil {
 		t.Fatalf("fork: %v\noutput: %s", err, out)
 	}
