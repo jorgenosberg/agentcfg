@@ -63,7 +63,7 @@ func buildRequest(t *testing.T, tmp string, p plugins.Plugin) fork.Request {
 }
 
 // buildRequestFor is buildRequest but lets the caller pick a claude-dir name
-// (e.g. "claude" vs "claude-knowit"), so a single forks root/path can be
+// (e.g. "claude" vs "claude-work"), so a single forks root/path can be
 // shared across a fork into multiple Claude Code directories.
 func buildRequestFor(t *testing.T, tmp, claudeDirName string, p plugins.Plugin) fork.Request {
 	t.Helper()
@@ -266,10 +266,10 @@ func TestExecute_SecondClaudeDir_ReusesBundleAndRegistersSeparately(t *testing.T
 		t.Fatalf("first Execute (claude): %v", err)
 	}
 
-	req2 := buildRequestFor(t, tmp, "claude-knowit", p)
+	req2 := buildRequestFor(t, tmp, "claude-work", p)
 	res2, err := fork.Execute(req2)
 	if err != nil {
-		t.Fatalf("second Execute (claude-knowit): %v", err)
+		t.Fatalf("second Execute (claude-work): %v", err)
 	}
 
 	// Same bundle path reused, not duplicated.

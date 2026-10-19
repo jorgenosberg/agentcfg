@@ -100,7 +100,7 @@ func TestToggle_ExactNameBeatsSharedAlias(t *testing.T) {
 	cfg := defaultConfig(home)
 	cfg.Targets = []config.Target{
 		{Name: "claude", Path: filepath.Join(home, ".claude"), Agent: "claude", Alias: "claude"},
-		{Name: "claude-knowit", Path: filepath.Join(home, ".claude-knowit"), Agent: "claude", Alias: "claude"},
+		{Name: "claude-work", Path: filepath.Join(home, ".claude-work"), Agent: "claude", Alias: "claude"},
 	}
 	seedConfig(t, home, cfg)
 	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
@@ -121,7 +121,7 @@ func TestToggle_ExactNameBeatsSharedAlias(t *testing.T) {
 			if !disabled {
 				t.Errorf("target %q: expected item disabled", tgt.Name)
 			}
-		case "claude-knowit":
+		case "claude-work":
 			if disabled {
 				t.Errorf("target %q: alias must not widen exact-name selection, disabled=%v", tgt.Name, tgt.Disabled)
 			}
@@ -136,7 +136,7 @@ func TestToggle_AliasSelectsGroup(t *testing.T) {
 	cfg := defaultConfig(home)
 	cfg.Targets = []config.Target{
 		{Name: "claude-personal", Path: filepath.Join(home, ".claude"), Agent: "claude", Alias: "claude"},
-		{Name: "claude-knowit", Path: filepath.Join(home, ".claude-knowit"), Agent: "claude", Alias: "claude"},
+		{Name: "claude-work", Path: filepath.Join(home, ".claude-work"), Agent: "claude", Alias: "claude"},
 	}
 	seedConfig(t, home, cfg)
 	addContextItem(t, srcDir, "CLAUDE.md", "# hello")
