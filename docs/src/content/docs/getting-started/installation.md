@@ -17,7 +17,7 @@ brew install jorgenosberg/tap/agentcfg
 go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest
 ```
 
-Requires Go 1.24 or newer.
+Requires Go 1.26 or newer.
 
 ## From source
 

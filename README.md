@@ -24,7 +24,7 @@ Or with Go:
 go install github.com/jorgenosberg/agentcfg/cmd/agentcfg@latest
 ```
 
-Go installs and source builds require Go `1.24` or newer. Or clone and run
+Go installs and source builds require Go `1.26` or newer. Or clone and run
 `make build`.
 
 ## Quick start
