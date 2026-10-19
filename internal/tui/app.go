@@ -142,7 +142,7 @@ func newModel(cfgPath string, cfg config.Config, items []source.Item, projectIte
 // plugins but are not present in the agentcfg source tree. These appear in
 // the main view so nothing silently disappears when a plugin is disabled.
 // Plugins that have been forked into the agentcfg fork marketplace are skipped
-// entirely — their bundle is intact and managed there.
+// entirely, since their bundle is intact and managed there.
 func synthesizeGhosts(reg *plugins.Registry, ff *forks.ForkFile, cfg config.Config, managedItems []source.Item) []sync.Entry {
 	if reg == nil || len(cfg.Targets) == 0 {
 		return nil
@@ -158,7 +158,7 @@ func synthesizeGhosts(reg *plugins.Registry, ff *forks.ForkFile, cfg config.Conf
 		if p.Enabled {
 			continue
 		}
-		// A forked plugin's bundle lives in the fork marketplace — don't ghost it.
+		// A forked plugin's bundle lives in the fork marketplace, so don't ghost it.
 		if ff.PluginForked(p.FullName) {
 			continue
 		}
@@ -826,7 +826,7 @@ func renderPreviewSummary(meta previewMeta, w int) []string {
 	// Line 2: full path
 	line2 := p(" " + truncateRunes(meta.path, w-2))
 
-	// Line 3: stats — lines, chars, token estimate, context window %
+	// Line 3: lines, chars, token estimate, context window %
 	tokens := meta.chars / 4
 	var tokStr string
 	if tokens < 1000 {
@@ -1058,7 +1058,7 @@ func (m model) buildGroupedRows(lh, leftIW int) []string {
 	rows := make([]string, 0, lh)
 
 	if len(m.cfg.Targets) == 0 {
-		rows = append(rows, dimStyle.Render("  no targets — press I for wizard, D to discover, n to add"))
+		rows = append(rows, dimStyle.Render("  no targets; press I for the wizard, D to discover, n to add"))
 		for len(rows) < lh {
 			rows = append(rows, "")
 		}
@@ -1109,7 +1109,7 @@ func (m model) buildAgentFolderRows(lh, leftIW int) []string {
 	entries := m.filteredTargetEntries()
 
 	if len(m.cfg.Targets) == 0 {
-		rows = append(rows, dimStyle.Render("  no targets — press I for wizard, D to discover, n to add"))
+		rows = append(rows, dimStyle.Render("  no targets; press I for the wizard, D to discover, n to add"))
 		for len(rows) < lh {
 			rows = append(rows, "")
 		}
@@ -1152,7 +1152,7 @@ func (m model) buildProjectsRows(lh, leftIW int) []string {
 	if len(m.projectItems) == 0 {
 		msg := "  no agent files found in configured projects"
 		if len(m.cfg.Projects) == 0 {
-			msg = "  no projects — add one: agentcfg project add <name> <path>"
+			msg = "  no projects; add one with agentcfg project add <name> <path>"
 		}
 		rows = append(rows, dimStyle.Render(msg))
 		for len(rows) < lh {

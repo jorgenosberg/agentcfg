@@ -12,8 +12,6 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/config"
 )
 
-// --- list ---
-
 func TestList_ShowsItems(t *testing.T) {
 	home := sandbox(t)
 	srcDir := defaultSource(home)
@@ -270,8 +268,6 @@ func TestSync_NoTargetsReportsActionableMessage(t *testing.T) {
 	}
 }
 
-// --- toggle ---
-
 func TestToggle_InfersDisable(t *testing.T) {
 	home := sandbox(t)
 	srcDir := defaultSource(home)
@@ -413,8 +409,6 @@ func TestToggle_UnknownItem(t *testing.T) {
 	}
 }
 
-// --- unmanage ---
-
 func TestUnmanage_ConvertsSymlinkToFile(t *testing.T) {
 	home := sandbox(t)
 	srcDir := defaultSource(home)
@@ -481,8 +475,6 @@ func TestUnmanage_UnknownItem(t *testing.T) {
 	}
 }
 
-// --- version ---
-
 func addSkillItem(t *testing.T, srcDir, name string) {
 	t.Helper()
 	skillDir := filepath.Join(srcDir, "skills", name)
@@ -515,7 +507,7 @@ func TestVersion_Roundtrip(t *testing.T) {
 		t.Errorf("expected 'v1' in list output: %s", out)
 	}
 
-	// switch — SwitchVersion auto-saves current state as "previous" before swapping.
+	// switch: SwitchVersion auto-saves current state as "previous" before swapping.
 	out, err = runCLI(t, "version", "switch", "my-skill", "v1")
 	if err != nil {
 		t.Fatalf("version switch: %v\noutput: %s", err, out)
@@ -576,8 +568,6 @@ func TestVersion_UnknownItem(t *testing.T) {
 		t.Error("expected error for unknown item in version list")
 	}
 }
-
-// --- backup ---
 
 func TestBackup_CreateAndList(t *testing.T) {
 	home := sandbox(t)
@@ -696,8 +686,6 @@ func TestBackup_Restore(t *testing.T) {
 		t.Errorf("restored content mismatch: %q", data)
 	}
 }
-
-// --- edit ---
 
 func TestEdit_NoopEditor(t *testing.T) {
 	home := sandbox(t)

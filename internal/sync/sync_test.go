@@ -277,10 +277,6 @@ func TestUnmanageAbsent(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// destPath (tested via Inspect Entry.Dest)
-// ---------------------------------------------------------------------------
-
 func TestDestPath_EmptySubdir(t *testing.T) {
 	// No agent, no Subdirs → defaultSubdirs["context"] = "" → dest = tgt/name.
 	src := t.TempDir()
@@ -326,10 +322,6 @@ func TestDestPath_NonEmptySubdir(t *testing.T) {
 		t.Errorf("destPath: want %q, got %q", want, entries[0].Dest)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// statusOf branches (tested via Inspect Entry.Status)
-// ---------------------------------------------------------------------------
 
 func TestInspect_Absent(t *testing.T) {
 	src := t.TempDir()
@@ -577,10 +569,6 @@ func TestInspect_Drifted_DirNestedContent(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Uninstall
-// ---------------------------------------------------------------------------
-
 func TestUninstall_RefusesUnmanaged(t *testing.T) {
 	src := t.TempDir()
 	tgtDir := t.TempDir()
@@ -603,10 +591,6 @@ func TestUninstall_RefusesUnmanaged(t *testing.T) {
 		t.Error("unmanaged file should not be removed")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Install
-// ---------------------------------------------------------------------------
 
 func TestInstall_LinkStrategy(t *testing.T) {
 	src := t.TempDir()
@@ -707,10 +691,6 @@ func TestInstall_Drifted_Reinstalls(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Adopt
-// ---------------------------------------------------------------------------
-
 func TestAdopt_ReplacesUnmanaged(t *testing.T) {
 	src := t.TempDir()
 	tgtDir := t.TempDir()
@@ -755,10 +735,6 @@ func TestAdopt_AbsentBehavesLikeInstall(t *testing.T) {
 		t.Errorf("want StatusLinked, got %q", st)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// ScanTargetDirs
-// ---------------------------------------------------------------------------
 
 func TestScanTargetDirs_MatchedAndUnmanaged(t *testing.T) {
 	src := t.TempDir()
@@ -808,10 +784,6 @@ func TestScanTargetDirs_MatchedAndUnmanaged(t *testing.T) {
 		t.Errorf("extra.sh: want StatusUnmanaged, got %q", byName["extra.sh"])
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Sync
-// ---------------------------------------------------------------------------
 
 func TestSync_DryRunMakesNoChanges(t *testing.T) {
 	src := t.TempDir()
@@ -937,10 +909,6 @@ func TestSync_SkipsDisabledAndNA(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// CopyAny / copyDir
-// ---------------------------------------------------------------------------
-
 func TestCopyAny_File(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "source.txt")
 	if err := os.WriteFile(src, []byte("hello"), 0o644); err != nil {
@@ -990,10 +958,6 @@ func TestCopyAny_Dir(t *testing.T) {
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Command and rule kind support
-// ---------------------------------------------------------------------------
 
 func TestScanTargetDirs_PicksUpCommands(t *testing.T) {
 	src := t.TempDir()
@@ -1145,8 +1109,7 @@ func TestCopyAny_Dir_ToleratesDanglingNestedSymlink(t *testing.T) {
 		t.Fatalf("write real.txt: %v", err)
 	}
 	// A symlink whose target does not exist, nested inside the tree being
-	// copied — must not abort the copy (regression: previously errored via
-	// os.Open on the dangling target).
+	// copied, must not abort the copy.
 	dangling := filepath.Join(srcDir, "gone")
 	if err := os.Symlink(filepath.Join(srcDir, "does-not-exist.txt"), dangling); err != nil {
 		t.Fatalf("symlink: %v", err)

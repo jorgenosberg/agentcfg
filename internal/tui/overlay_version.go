@@ -11,8 +11,6 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/source"
 )
 
-// ── saveVersionOverlay ────────────────────────────────────────────────────────
-
 type saveVersionOverlay struct {
 	item   source.Item
 	input  textinput.Model

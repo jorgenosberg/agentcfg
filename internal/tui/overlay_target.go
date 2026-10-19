@@ -15,8 +15,6 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/icons"
 )
 
-// ── addTargetOverlay ──────────────────────────────────────────────────────────
-
 type addTargetOverlay struct {
 	cfgPath   string
 	cfg       config.Config
@@ -179,7 +177,6 @@ func (o *addTargetOverlay) focusCurrent() tea.Cmd {
 func (o *addTargetOverlay) View(w int) string {
 	var sb strings.Builder
 
-	// Name field
 	if o.focused == 0 {
 		sb.WriteString(cursorStyle.Render("▶ "))
 	} else {
@@ -188,7 +185,6 @@ func (o *addTargetOverlay) View(w int) string {
 	sb.WriteString(o.name.View())
 	sb.WriteString("\n\n")
 
-	// Path field
 	if o.focused == 1 {
 		sb.WriteString(cursorStyle.Render("▶ "))
 	} else {
@@ -197,7 +193,6 @@ func (o *addTargetOverlay) View(w int) string {
 	sb.WriteString(o.path.View())
 	sb.WriteString("\n\n")
 
-	// Agent type field
 	if o.focused == 2 {
 		sb.WriteString(cursorStyle.Render("▶ "))
 	} else {
@@ -214,7 +209,6 @@ func (o *addTargetOverlay) View(w int) string {
 	}
 	sb.WriteString("\n\n")
 
-	// Alias field (optional)
 	if o.focused == 3 {
 		sb.WriteString(cursorStyle.Render("▶ "))
 	} else {
@@ -229,8 +223,6 @@ func (o *addTargetOverlay) View(w int) string {
 	sb.WriteString(dimStyle.Render("tab next field · ←/→ cycle agent · enter/tab confirm · esc cancel"))
 	return renderOverlayBox(w, sb.String(), "Add target", 62)
 }
-
-// ── addProjectOverlay ─────────────────────────────────────────────────────────
 
 type addProjectOverlay struct {
 	cfgPath string
@@ -339,8 +331,6 @@ func (o *addProjectOverlay) View(w int) string {
 	sb.WriteString(dimStyle.Render("tab next field · enter submit · esc cancel"))
 	return renderOverlayBox(w, sb.String(), "Add project", 54)
 }
-
-// ── discoverOverlay ───────────────────────────────────────────────────────────
 
 type discoverOverlay struct {
 	cfgPath    string

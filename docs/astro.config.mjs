@@ -3,7 +3,7 @@ import starlight from '@astrojs/starlight';
 
 // This is a GitHub Pages *project* site (jorgenosberg.github.io/agentcfg),
 // so `base` must match the repo name or every internal link/asset breaks
-// once deployed. Use `import.meta.env.BASE_URL` in custom components —
+// once deployed. Use `import.meta.env.BASE_URL` in custom components;
 // never hard-code a leading "/".
 export default defineConfig({
   site: 'https://jorgenosberg.github.io',
@@ -61,7 +61,7 @@ export default defineConfig({
         {
           label: 'Reference',
           items: [
-            // Auto-generated from the Cobra command tree by `make gen-docs` —
+            // Auto-generated from the Cobra command tree by `make gen-docs`, so
             // new commands/subcommands appear here without touching this file.
             { label: 'CLI', items: [{ autogenerate: { directory: 'reference/cli' } }] },
           ],

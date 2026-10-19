@@ -32,10 +32,10 @@ func assertPluginEnabled(t *testing.T, settingsPath, pluginName string, want boo
 //
 // Directory layout created:
 //
-//	<home>/.claude/settings.json                     — enabledPlugins: {myplugin@market: true}
+//	<home>/.claude/settings.json                     (enabledPlugins: {myplugin@market: true})
 //	<home>/.claude/plugins/installed_plugins.json
 //	<home>/.claude/plugins/plugin-catalog-cache.json
-//	<home>/.claude/plugins/known_marketplaces.json   — empty {}
+//	<home>/.claude/plugins/known_marketplaces.json   (empty {})
 //	<home>/.claude/plugins/cache/market/myplugin/1.0.0/skills/my-skill/SKILL.md
 //	<home>/.claude/plugins/cache/market/myplugin/1.0.0/commands/review.md
 //	<home>/.claude/plugins/cache/market/myplugin/1.0.0/agents/helper.md

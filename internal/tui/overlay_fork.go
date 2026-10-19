@@ -10,8 +10,6 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/plugins"
 )
 
-// ── forkOverlay ───────────────────────────────────────────────────────────────
-
 // forkOverlay confirms forking an entire plugin bundle into the agentcfg fork
 // marketplace before executing the operation.
 type forkOverlay struct {

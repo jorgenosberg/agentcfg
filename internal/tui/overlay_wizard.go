@@ -18,8 +18,6 @@ import (
 	"github.com/jorgenosberg/agentcfg/internal/wizard"
 )
 
-// ── initWizardOverlay ─────────────────────────────────────────────────────────
-
 type wizardStep int
 
 const (
@@ -215,7 +213,6 @@ func (o *initWizardOverlay) apply() error {
 		return err
 	}
 
-	// Import selected items
 	for i, wi := range o.wizardItems {
 		if !o.itemMS.items[i].selected {
 			continue
@@ -377,7 +374,7 @@ func (o *initWizardOverlay) View(w int) string {
 
 	case wizardStepTargets:
 		selCount := len(o.targetMS.selectedItems())
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("%d / %d selected  —  agent directories to sync into", selCount, len(o.targetMS.items))))
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("%d / %d selected: agent directories to sync into", selCount, len(o.targetMS.items))))
 		sb.WriteString("\n\n")
 		if len(o.targetMS.items) == 0 {
 			sb.WriteString(dimStyle.Render("  no agent directories found on disk\n"))
@@ -389,7 +386,7 @@ func (o *initWizardOverlay) View(w int) string {
 
 	case wizardStepItems:
 		selCount := len(o.itemMS.selectedItems())
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("%d / %d selected  —  items to copy into your source tree", selCount, len(o.itemMS.items))))
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("%d / %d selected: items to copy into your source tree", selCount, len(o.itemMS.items))))
 		sb.WriteString("\n\n")
 		sb.WriteString(o.itemMS.View())
 		sb.WriteString("\n\n")

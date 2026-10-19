@@ -279,7 +279,7 @@ func TestPasteOverlayPadsShortLine(t *testing.T) {
 func TestPasteOverlaySkipsOutOfBoundsRows(t *testing.T) {
 	bg := "line0\nline1"
 	popup := "X\nY\nZ"
-	// y=1 means popup rows land at bg lines 1, 2, 3 — line 2 and 3 don't exist
+	// y=1 means popup rows land at bg lines 1, 2, 3, but lines 2 and 3 don't exist
 	result := pasteOverlay(bg, popup, 0, 1)
 	lines := strings.Split(result, "\n")
 	if len(lines) != 2 {
@@ -341,7 +341,7 @@ func TestBuildRightPanelTitleTruncation(t *testing.T) {
 
 	lines := m.buildRightPanel(20, 10)
 	topBorder := ansi.Strip(lines[0])
-	// The full filename "very-long-filename.md" (21 runes) must not appear — only truncated prefix.
+	// The full filename "very-long-filename.md" (21 runes) must not appear, only the truncated prefix.
 	if strings.Contains(topBorder, "very-long-filename.md") {
 		t.Errorf("expected filename to be truncated, but full name appears in: %q", topBorder)
 	}

@@ -13,7 +13,7 @@ import (
 )
 
 // makePlugin builds a realistic plugin directory structure and returns the Plugin.
-// The bundle has: skills/, commands/, agents/, hooks/, bin/ — testing that the
+// The bundle has: skills/, commands/, agents/, hooks/, bin/, testing that the
 // full bundle is copied, not just skills/hooks.
 func makePlugin(t *testing.T, installDir string) plugins.Plugin {
 	t.Helper()
@@ -107,7 +107,7 @@ func TestExecute_BundleCopiedFully(t *testing.T) {
 		t.Errorf("ForkFullName: got %q", res.ForkFullName)
 	}
 
-	// Entire bundle should be present — including non-skill/hook dirs.
+	// Entire bundle should be present, including non-skill/hook dirs.
 	for _, rel := range []string{
 		"skills/my-skill/SKILL.md",
 		"commands/review.md",
