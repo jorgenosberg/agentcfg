@@ -56,7 +56,7 @@ func Execute(req Request) (Result, error) {
 	_, statErr := os.Stat(bundleDest)
 	bundleExists := statErr == nil
 	if bundleExists && !alreadyTracked {
-		// Bundle present on disk but forks.json has no record of it — an
+		// Bundle present on disk but forks.json has no record of it, so it is an
 		// orphaned or foreign directory. Refuse to clobber it.
 		return Result{}, fmt.Errorf("fork already exists at %s; remove it first", bundleDest)
 	}
@@ -66,11 +66,9 @@ func Execute(req Request) (Result, error) {
 		if err := os.MkdirAll(filepath.Dir(bundleDest), 0o755); err != nil {
 			return Result{}, fmt.Errorf("create fork plugins dir: %w", err)
 		}
-		// Copy the full bundle verbatim.
 		if err := isync.CopyAny(p.InstallPath, bundleDest); err != nil {
 			return Result{}, fmt.Errorf("copy plugin bundle: %w", err)
 		}
-		// Register the plugin in the agentcfg fork marketplace manifest.
 		if err := marketplace.AddPlugin(req.ForksRoot, p); err != nil {
 			return Result{}, fmt.Errorf("update fork marketplace manifest: %w", err)
 		}
@@ -78,22 +76,18 @@ func Execute(req Request) (Result, error) {
 
 	now := time.Now().UTC()
 
-	// Register the fork marketplace with Claude Code for this ClaudeDir.
 	if err := marketplace.RegisterMarketplace(req.KnownMarketplacesPath, req.ForksRoot); err != nil {
 		return Result{}, fmt.Errorf("register fork marketplace: %w", err)
 	}
 
-	// Add the fork to Claude Code's installed plugins registry for this ClaudeDir.
 	if err := marketplace.RegisterInstalled(req.InstalledPluginsPath, p, bundleDest, now); err != nil {
 		return Result{}, fmt.Errorf("register fork in installed_plugins: %w", err)
 	}
 
-	// Enable the fork in Claude Code settings for this ClaudeDir.
 	if err := claudecfg.SetPluginEnabled(req.SettingsPath, forkFullName, true); err != nil {
 		return Result{}, fmt.Errorf("enable fork in settings: %w", err)
 	}
 
-	// Disable the upstream plugin for this ClaudeDir.
 	if err := claudecfg.SetPluginEnabled(req.SettingsPath, p.FullName, false); err != nil {
 		return Result{}, fmt.Errorf("disable upstream in settings: %w", err)
 	}

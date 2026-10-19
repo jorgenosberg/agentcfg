@@ -21,7 +21,7 @@ func NewRoot() *cobra.Command {
 			"more AI coding agent directories (Claude Code, Codex, Copilot, " +
 			"opencode, ...). Source path is user-configurable; default is " +
 			"~/.agentcfg/source.\n\n" +
-			"Set AGENTCFG_HOME to any directory to run in an isolated sandbox — " +
+			"Set AGENTCFG_HOME to any directory to run in an isolated sandbox: " +
 			"all reads and writes (state, catalog, Claude plugin files) go there " +
 			"instead of the real $HOME.",
 		SilenceUsage:  true,
@@ -42,7 +42,7 @@ func NewRoot() *cobra.Command {
 		}
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return config.Config{}, fmt.Errorf(
-				"no config found at %s — run `agentcfg init` to bootstrap", path)
+				"no config found at %s; run `agentcfg init` to bootstrap", path)
 		}
 		return config.Load(path)
 	}

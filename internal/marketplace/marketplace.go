@@ -197,8 +197,6 @@ func RegisterInstalled(installedPluginsPath string, p plugins.Plugin, bundlePath
 	})
 }
 
-// — manifest helpers —
-
 func loadManifest(path string) (manifest, error) {
 	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {

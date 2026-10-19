@@ -11,7 +11,7 @@ import (
 
 // targetSubdirConfig builds a config whose target uses the claude agent profile.
 // The import command now calls t.SupportedSubdirs(), so no explicit Subdirs override
-// is needed — the agent profile provides the full layout including commands.
+// is needed; the agent profile provides the full layout including commands.
 func targetSubdirConfig(home, tgtPath string) config.Config {
 	return config.Config{
 		Source:          defaultSource(home),

@@ -205,7 +205,7 @@ func Toggle(cfgPath, targetName string, item source.Item, disable bool) error {
 
 	if disable {
 		if t.IsDisabled(item) {
-			return nil // already disabled — idempotent
+			return nil // already disabled
 		}
 		t.Disabled = append(t.Disabled, item.Name)
 		dest := destPath(*t, item)
@@ -416,7 +416,7 @@ func Sync(cfg config.Config, items []source.Item, lck lock.Lock, dryRun, force b
 // ImportItem copies a source item into sourceRoot under the subdirectory
 // determined by its kind. If the destination already exists and force is false,
 // it returns (true, nil). If force is true the existing destination is removed
-// first. Use this instead of open-coding the destSub/destDir/CopyAny pattern.
+// first.
 func ImportItem(sourceRoot string, it source.Item, force bool) (skipped bool, err error) {
 	destSub := source.DefaultSubdirs[it.Kind]
 	destDir := filepath.Join(sourceRoot, destSub)

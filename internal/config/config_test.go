@@ -244,10 +244,6 @@ func TestSubdirForExplicitSubdirsNoFallthrough(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// ResolveStrategy
-// ---------------------------------------------------------------------------
-
 func TestResolveStrategy_Explicit(t *testing.T) {
 	tgt := config.Target{Strategy: config.StrategyCopy}
 	if got := tgt.ResolveStrategy(config.StrategyLink); got != config.StrategyCopy {
@@ -268,10 +264,6 @@ func TestResolveStrategy_BothEmpty(t *testing.T) {
 		t.Errorf("both empty: want %q (default), got %q", config.StrategyLink, got)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Excludes
-// ---------------------------------------------------------------------------
 
 func TestExcludes_MatchByName(t *testing.T) {
 	tgt := config.Target{Exclude: []string{"GEMINI.md"}}
@@ -305,10 +297,6 @@ func TestExcludes_KindMismatch(t *testing.T) {
 		t.Error("Excludes with kind prefix should not match a different kind")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Default / DefaultSource / DefaultPath
-// ---------------------------------------------------------------------------
 
 func TestDefault_Shape(t *testing.T) {
 	cfg := config.Default("")

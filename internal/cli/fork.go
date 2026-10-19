@@ -19,13 +19,6 @@ import (
 )
 
 // newForkCmd returns the "fork" command group.
-//
-// Usage:
-//
-//	agentcfg fork <plugin@marketplace>                                  # fork a plugin (default: ~/.claude)
-//	agentcfg fork <plugin@marketplace> --claude-dir a --claude-dir b    # fork into multiple Claude Code homes
-//	agentcfg fork list                                                  # list recorded forks
-//	agentcfg fork status                                                # check drift vs upstream
 func newForkCmd() *cobra.Command {
 	var dryRun bool
 	var claudeDirs []string

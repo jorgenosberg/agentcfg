@@ -33,7 +33,7 @@ func RunInit(cfgPath, defaultSource string) error {
 		src = s
 	}
 
-	// ── Step 1: source tree path ──────────────────────────────────────────
+	// Source tree path.
 	if err := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -45,16 +45,8 @@ func RunInit(cfgPath, defaultSource string) error {
 		return abort(err)
 	}
 
-	// ── Step 2: discover agents → select sync targets ─────────────────────
+	// Discover agents and pick the sync targets.
 	found := catalog.Discover()
-
-	if len(found) > 0 {
-		names := make([]string, len(found))
-		for i, t := range found {
-			names[i] = t.Name
-		}
-		icons.Preload(names)
-	}
 
 	var selectedTargetNames []string
 	if len(found) > 0 {
@@ -75,12 +67,12 @@ func RunInit(cfgPath, defaultSource string) error {
 			return abort(err)
 		}
 	} else {
-		fmt.Println("  no known agent directories found — you can add targets later with `agentcfg target add`")
+		fmt.Println("  no known agent directories found; add targets later with `agentcfg target add`")
 	}
 
 	selectedTargets := targetsForNames(found, selectedTargetNames)
 
-	// ── Step 3: scan items in selected targets → choose what to import ────
+	// Scan the selected targets and pick what to import.
 	// Collect every item found across all selected targets, then deduplicate:
 	// items with the same kind+name and identical content are shown once;
 	// items with the same kind+name but different content are shown with the
@@ -141,7 +133,7 @@ func RunInit(cfgPath, defaultSource string) error {
 			badge := icons.TextBadge(rc.target.Name, 3)
 			label := fmt.Sprintf("%s  %-8s  %s", badge, rc.item.Kind, rc.item.Name)
 			if multiContent {
-				// Same name, different content — show which agent it came from.
+				// Same name, different content: show which agent it came from.
 				key = rc.target.Name + "/" + rc.item.Kind + "/" + rc.item.Name
 				label = fmt.Sprintf("%s  %-8s  %-24s  [%s]", badge, rc.item.Kind, rc.item.Name, rc.target.Name)
 			}
@@ -170,7 +162,7 @@ func RunInit(cfgPath, defaultSource string) error {
 		}
 	}
 
-	// ── Step 4: optionally add a project folder ───────────────────────────
+	// Optionally add a project folder.
 	var addProject bool
 	if err := huh.NewForm(
 		huh.NewGroup(
@@ -201,7 +193,7 @@ func RunInit(cfgPath, defaultSource string) error {
 		}
 	}
 
-	// ── Apply ─────────────────────────────────────────────────────────────
+	// Apply.
 
 	for _, sub := range source.DefaultSubdirs {
 		if sub == "" {
@@ -227,7 +219,6 @@ func RunInit(cfgPath, defaultSource string) error {
 		return err
 	}
 
-	// Import selected items
 	toImport := map[string]bool{}
 	for _, k := range selectedKeys {
 		toImport[k] = true
@@ -247,7 +238,7 @@ func RunInit(cfgPath, defaultSource string) error {
 		}
 	}
 
-	// ── Summary ───────────────────────────────────────────────────────────
+	// Summary.
 	fmt.Println()
 	fmt.Printf("  config   → %s\n", cfgPath)
 	fmt.Printf("  source   → %s\n", src)

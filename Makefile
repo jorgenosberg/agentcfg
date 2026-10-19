@@ -52,7 +52,7 @@ vet:
 ## lint: run golangci-lint (install via: brew install golangci-lint)
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || \
-		{ echo "golangci-lint not found — install: brew install golangci-lint"; exit 1; }
+		{ echo "golangci-lint not found; install: brew install golangci-lint"; exit 1; }
 	golangci-lint run ./...
 
 ## fmt: format all Go source files
@@ -71,7 +71,7 @@ gen-docs:
 ## check-docs: fail if the committed CLI reference is stale vs the Cobra tree
 check-docs: gen-docs
 	@git diff --exit-code -- docs/src/content/docs/reference/cli || \
-		{ echo "CLI reference is stale — run 'make gen-docs' and commit the result"; exit 1; }
+		{ echo "CLI reference is stale; run 'make gen-docs' and commit the result"; exit 1; }
 
 ## clean: remove build artefacts
 clean:
@@ -84,7 +84,7 @@ run-tui: agentcfg
 ## watch: rebuild and relaunch the TUI on every .go change (requires watchexec)
 watch:
 	@command -v watchexec >/dev/null 2>&1 || \
-		{ echo "watchexec not found — install: brew install watchexec"; exit 1; }
+		{ echo "watchexec not found; install: brew install watchexec"; exit 1; }
 	@mkdir -p bin/.watch
 	watchexec -e go -r -- ./scripts/watch-tui.sh
 
