@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.0](https://github.com/jorgenosberg/agentcfg/compare/v0.2.0...v0.3.0) (2026-10-20)
+
+
+### Features
+
+* **agents:** support opencode plugins and pi ([dad6777](https://github.com/jorgenosberg/agentcfg/commit/dad6777b9ffde3d1743c6174d0c8f6c84d8ff011))
+* **cli:** add --json output to list and status ([aba0574](https://github.com/jorgenosberg/agentcfg/commit/aba0574e72d5b18d0a5bc54c3dd4a70a39848b0c))
+* **cli:** add move command to shift items between global and project scope ([3e5a816](https://github.com/jorgenosberg/agentcfg/commit/3e5a8160980b26bb6465d1cfa37225679fd179d3))
+* **cli:** include source path in status --json entries ([f80dfc8](https://github.com/jorgenosberg/agentcfg/commit/f80dfc878301b3a5bdb777ff7d357b6506d9c6ec))
+* **cli:** open the TUI from agentcfg and drop the lazyagentcfg binary ([2c00f17](https://github.com/jorgenosberg/agentcfg/commit/2c00f17aa8aea6bb7357b6ddd3b9b6bdb1c442a3))
+* **cli:** report errors as JSON on stderr in --json mode ([43312da](https://github.com/jorgenosberg/agentcfg/commit/43312da494b81cc42f1e720a07a3cc67b21235ce))
+* **copilot:** support personal skills ([3d38477](https://github.com/jorgenosberg/agentcfg/commit/3d3847750af45d30bc024ff7c5013edfbbd27b98))
+* **fork:** support forking a plugin into multiple Claude Code homes ([9c11ad7](https://github.com/jorgenosberg/agentcfg/commit/9c11ad7f5652c43bfb36b0b79dc2ab08dfb767a7))
+* **hooks:** label Codex hooks from a status header option or the script name ([d4607bd](https://github.com/jorgenosberg/agentcfg/commit/d4607bdd18211a5b8d5c13593aee10539bac950a))
+* **hooks:** register hook scripts in Claude, Codex, and Copilot configs from script headers ([9615eea](https://github.com/jorgenosberg/agentcfg/commit/9615eea44477448a891c71e79c24645cfc3cb694))
+* **tui:** add file tree and doc fallbacks to plugin preview, strip HTML from READMEs ([aced6dd](https://github.com/jorgenosberg/agentcfg/commit/aced6dd5753ce4e4df802eeff1e855e5ac31b674))
+
+
+### Bug Fixes
+
+* **cli:** resolve -t by exact target name before group alias ([cfcec9f](https://github.com/jorgenosberg/agentcfg/commit/cfcec9f792b446c678ce04e6ec817c435928b1a3))
+* **cli:** update fork test fixture to plain-string hooks catalog entries ([256a690](https://github.com/jorgenosberg/agentcfg/commit/256a690bea25087aa4ad5306b0e8f88cca5a4ddd))
+* **plugins:** parse hooks catalog entries as plain strings too ([bc4bcd5](https://github.com/jorgenosberg/agentcfg/commit/bc4bcd56eaa40f7af9e8d89d2ef0e4a23d51fc37))
+* **plugins:** parse mcpServers/lspServers catalog entries as plain strings ([c49ddfc](https://github.com/jorgenosberg/agentcfg/commit/c49ddfcac959180ac5f76c4fcb8dbf23b45f8d17))
+* **sync:** resolve symlinks before comparing content in sameContent ([4c8bca1](https://github.com/jorgenosberg/agentcfg/commit/4c8bca1df1df5b13b3f0c3acab4a9c0f82847840))
+* **sync:** tolerate dangling symlinks when copying a directory tree ([b2b7fe1](https://github.com/jorgenosberg/agentcfg/commit/b2b7fe1f2b6ad0b0fc6e928db26ec471fb7085e8))
+* **tui:** align panel titles with content and pad the tab bar ([6ee1fa1](https://github.com/jorgenosberg/agentcfg/commit/6ee1fa1f1cbdf2985fb873ae5929d6ba8e6fd302))
+* **tui:** improve contrast for inactive cells and selected row, stop rows overflowing panels ([546aa72](https://github.com/jorgenosberg/agentcfg/commit/546aa7242293d7f1d1248b15fbcfd28d2c7f7c8f))
+
 ## [0.2.0](https://github.com/jorgenosberg/agentcfg/compare/v0.1.1...v0.2.0) (2026-07-03)
 
 
